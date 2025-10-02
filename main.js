@@ -14373,9 +14373,14 @@ function diffChars(oldStr, newStr, options) {
 var DiffApplyPlugin = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
-    this.settings = { fontSize: 14 };
+    this.settings = { fontSize: 14, defaultDiffPosition: "center" };
   }
   async onload() {
+    await this.loadSettings();
+    
+    // 添加设置标签页
+    this.addSettingTab(new DiffApplySettingTab(this.app, this));
+    
     this.addCommand({
       id: "diff-apply-hybrid",
       name: "\u6DF7\u5408\u7F16\u8F91\u6240\u9009\u6587\u672C",
@@ -14393,6 +14398,14 @@ var DiffApplyPlugin = class extends import_obsidian.Plugin {
     );
   }
   onunload() {
+  }
+  
+  async loadSettings() {
+    this.settings = Object.assign({}, { fontSize: 14, defaultDiffPosition: "center" }, await this.loadData());
+  }
+  
+  async saveSettings() {
+    await this.saveData(this.settings);
   }
   
   async openHybridDiffForSelection(editor, view) {
@@ -14416,6 +14429,7 @@ var DiffApplyPlugin = class extends import_obsidian.Plugin {
         editor.replaceRange(finalText, from, to);
       },
       fontSize: this.settings.fontSize,
+      defaultDiffPosition: this.settings.defaultDiffPosition,
       plugin: this
     });
     modal.open();
@@ -14433,6 +14447,13 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     this.originalEditor = null;
     this.modifiedEditor = null;
     this.finalEditor = null;
+    // 新增：diff视图位置和可见性控制
+    this.diffViewPosition = opts.defaultDiffPosition || 'center'; // 使用设置中的默认位置
+    this.isDiffVisible = true;
+    this.diffOverlay = null;
+    this.leftPanel = null;
+    this.middlePanel = null;
+    this.rightPanel = null;
   }
 
   onOpen() {
@@ -14455,14 +14476,13 @@ var HybridDiffModal = class extends import_obsidian.Modal {
 
     // 添加使用提示
     const hint = container.createDiv({ cls: "hybrid-hint" });
-    hint.setText("Left: original, right: modified. Press Enter to copy selection to middle editor. Click middle header to toggle diff view. Cmd+Z to undo.");
+    hint.setText("Left: original, right: modified. Press Enter to copy selection to middle editor. Use Cmd+, / Cmd+. to move diff view, Cmd+/ to toggle visibility. Cmd+Z to undo.");
     hint.style.padding = "8px";
     hint.style.background = "#f0f0f0";
     hint.style.borderRadius = "4px";
     hint.style.fontSize = (this.fontSize - 1) + "px";
     hint.style.color = "#666";
 
-    
     // 创建三栏编辑器容器
     const editorsContainer = container.createDiv({ cls: "hybrid-editors-container" });
     editorsContainer.style.display = "flex";
@@ -14471,91 +14491,8 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     editorsContainer.style.minHeight = "0";
     console.log("Editors container created:", editorsContainer);
 
-    // 左侧原文面板
-    const leftPanel = editorsContainer.createDiv({ cls: "hybrid-panel original" });
-    leftPanel.style.flex = "1";
-    leftPanel.style.display = "flex";
-    leftPanel.style.flexDirection = "column";
-    leftPanel.style.border = "1px solid #ccc";
-    leftPanel.style.borderRadius = "4px";
-    leftPanel.style.minHeight = "0"; // 关键：允许flex子项缩小
-    
-    const leftHeader = leftPanel.createDiv({ cls: "panel-header" });
-    leftHeader.setText("Original");
-    leftHeader.style.padding = "8px";
-    leftHeader.style.background = "#f5f5f5";
-    leftHeader.style.borderBottom = "1px solid #ccc";
-    leftHeader.style.fontWeight = "bold";
-    leftHeader.style.flexShrink = "0"; // 防止header被压缩
-    
-    const leftContent = leftPanel.createDiv({ cls: "panel-content" });
-    leftContent.style.flex = "1";
-    leftContent.style.padding = "0"; // 移除padding，让编辑器占满空间
-    leftContent.style.overflow = "hidden"; // 由编辑器自己处理滚动
-    leftContent.style.minHeight = "0";
-    const originalEditor = this.createReadOnlyEditor(leftContent, this.originalText, true);
-    originalEditor.style.height = "100%"; // 确保编辑器占满容器
-    this.originalEditor = originalEditor;
-
-    // 中间编辑面板
-    const middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
-    middlePanel.style.flex = "1";
-    middlePanel.style.display = "flex";
-    middlePanel.style.flexDirection = "column";
-    middlePanel.style.border = "2px solid #4CAF50";
-    middlePanel.style.borderRadius = "4px";
-    middlePanel.style.minHeight = "0"; // 关键：允许flex子项缩小
-    
-    const middleHeader = middlePanel.createDiv({ cls: "panel-header" });
-    middleHeader.setText("Editor");
-    middleHeader.style.padding = "8px";
-    middleHeader.style.background = "#4CAF50";
-    middleHeader.style.color = "white";
-    middleHeader.style.fontWeight = "bold";
-    middleHeader.style.flexShrink = "0"; // 防止header被压缩
-    middleHeader.style.cursor = "pointer";
-    middleHeader.style.title = "点击显示/隐藏差异对比视图";
-    middleHeader.onclick = () => this.toggleDiffOverlay();
-    
-    const middleContent = middlePanel.createDiv({ cls: "panel-content" });
-    middleContent.style.flex = "1";
-    middleContent.style.padding = "0";
-    middleContent.style.overflow = "hidden";
-    middleContent.style.minHeight = "0";
-    middleContent.style.position = "relative"; // 为覆盖层定位
-    
-    const finalEditor = this.createEditableEditor(middleContent, "");
-    finalEditor.style.height = "100%";
-    this.finalEditor = finalEditor;
-    
-    // 创建diff覆盖层
-    this.createDiffOverlay(middleContent);
-
-    // 右侧修改版面板
-    const rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel modified" });
-    rightPanel.style.flex = "1";
-    rightPanel.style.display = "flex";
-    rightPanel.style.flexDirection = "column";
-    rightPanel.style.border = "1px solid #ccc";
-    rightPanel.style.borderRadius = "4px";
-    rightPanel.style.minHeight = "0"; // 关键：允许flex子项缩小
-    
-    const rightHeader = rightPanel.createDiv({ cls: "panel-header" });
-    rightHeader.setText("Modified");
-    rightHeader.style.padding = "8px";
-    rightHeader.style.background = "#f5f5f5";
-    rightHeader.style.borderBottom = "1px solid #ccc";
-    rightHeader.style.fontWeight = "bold";
-    rightHeader.style.flexShrink = "0"; // 防止header被压缩
-    
-    const rightContent = rightPanel.createDiv({ cls: "panel-content" });
-    rightContent.style.flex = "1";
-    rightContent.style.padding = "0";
-    rightContent.style.overflow = "hidden";
-    rightContent.style.minHeight = "0";
-    const modifiedEditor = this.createReadOnlyEditor(rightContent, this.modifiedText, false);
-    modifiedEditor.style.height = "100%";
-    this.modifiedEditor = modifiedEditor;
+    // 创建面板
+    this.createPanels(editorsContainer);
 
     // 添加操作按钮
     this.addHybridActions(container);
@@ -14598,6 +14535,173 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     });
     
     return lineStatus;
+  }
+
+  // 创建工具栏
+  // 创建面板
+  createPanels(editorsContainer) {
+    // 左侧原文面板
+    this.leftPanel = editorsContainer.createDiv({ cls: "hybrid-panel original" });
+    this.leftPanel.style.flex = "1";
+    this.leftPanel.style.display = "flex";
+    this.leftPanel.style.flexDirection = "column";
+    this.leftPanel.style.border = "1px solid #ccc";
+    this.leftPanel.style.borderRadius = "4px";
+    this.leftPanel.style.minHeight = "0";
+    
+    const leftHeader = this.leftPanel.createDiv({ cls: "panel-header" });
+    leftHeader.setText("Original");
+    leftHeader.style.padding = "8px";
+    leftHeader.style.background = "#f5f5f5";
+    leftHeader.style.borderBottom = "1px solid #ccc";
+    leftHeader.style.fontWeight = "bold";
+    leftHeader.style.flexShrink = "0";
+    
+    const leftContent = this.leftPanel.createDiv({ cls: "panel-content" });
+    leftContent.style.flex = "1";
+    leftContent.style.padding = "0";
+    leftContent.style.overflow = "hidden";
+    leftContent.style.minHeight = "0";
+    leftContent.style.position = "relative";
+    const originalEditor = this.createReadOnlyEditor(leftContent, this.originalText, true);
+    originalEditor.style.height = "100%";
+    this.originalEditor = originalEditor;
+
+    // 中间编辑面板
+    this.middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
+    this.middlePanel.style.flex = "1";
+    this.middlePanel.style.display = "flex";
+    this.middlePanel.style.flexDirection = "column";
+    this.middlePanel.style.border = "2px solid #4CAF50";
+    this.middlePanel.style.borderRadius = "4px";
+    this.middlePanel.style.minHeight = "0";
+    
+    const middleHeader = this.middlePanel.createDiv({ cls: "panel-header" });
+    middleHeader.setText("Editor");
+    middleHeader.style.padding = "8px";
+    middleHeader.style.background = "#4CAF50";
+    middleHeader.style.color = "white";
+    middleHeader.style.fontWeight = "bold";
+    middleHeader.style.flexShrink = "0";
+    
+    const middleContent = this.middlePanel.createDiv({ cls: "panel-content" });
+    middleContent.style.flex = "1";
+    middleContent.style.padding = "0";
+    middleContent.style.overflow = "hidden";
+    middleContent.style.minHeight = "0";
+    middleContent.style.position = "relative";
+    
+    const finalEditor = this.createEditableEditor(middleContent, "");
+    finalEditor.style.height = "100%";
+    this.finalEditor = finalEditor;
+
+    // 右侧修改版面板
+    this.rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel modified" });
+    this.rightPanel.style.flex = "1";
+    this.rightPanel.style.display = "flex";
+    this.rightPanel.style.flexDirection = "column";
+    this.rightPanel.style.border = "1px solid #ccc";
+    this.rightPanel.style.borderRadius = "4px";
+    this.rightPanel.style.minHeight = "0";
+    
+    const rightHeader = this.rightPanel.createDiv({ cls: "panel-header" });
+    rightHeader.setText("Modified");
+    rightHeader.style.padding = "8px";
+    rightHeader.style.background = "#f5f5f5";
+    rightHeader.style.borderBottom = "1px solid #ccc";
+    rightHeader.style.fontWeight = "bold";
+    rightHeader.style.flexShrink = "0";
+    
+    const rightContent = this.rightPanel.createDiv({ cls: "panel-content" });
+    rightContent.style.flex = "1";
+    rightContent.style.padding = "0";
+    rightContent.style.overflow = "hidden";
+    rightContent.style.minHeight = "0";
+    rightContent.style.position = "relative";
+    const modifiedEditor = this.createReadOnlyEditor(rightContent, this.modifiedText, false);
+    modifiedEditor.style.height = "100%";
+    this.modifiedEditor = modifiedEditor;
+
+    // 根据当前位置创建diff内容
+    this.updatePanelContents();
+  }
+
+  // 更新面板内容
+  updatePanelContents() {
+    // 清除所有现有的diff覆盖层
+    this.clearAllDiffOverlays();
+
+    // 根据当前位置创建diff内容
+    if (this.isDiffVisible) {
+      let targetPanel;
+      switch (this.diffViewPosition) {
+        case 'left':
+          targetPanel = this.leftPanel;
+          break;
+        case 'center':
+          targetPanel = this.middlePanel;
+          break;
+        case 'right':
+          targetPanel = this.rightPanel;
+          break;
+      }
+      
+      if (targetPanel) {
+        const content = targetPanel.querySelector('.panel-content');
+        if (content) {
+          this.createDiffOverlay(content);
+        }
+      }
+    }
+  }
+
+  // 清除所有diff覆盖层
+  clearAllDiffOverlays() {
+    [this.leftPanel, this.middlePanel, this.rightPanel].forEach(panel => {
+      if (panel) {
+        const existingOverlay = panel.querySelector('.diff-overlay');
+        if (existingOverlay) {
+          existingOverlay.remove();
+        }
+      }
+    });
+    this.diffOverlay = null;
+  }
+
+  // 切换diff位置
+  switchDiffPosition(position) {
+    this.diffViewPosition = position;
+    this.updatePanelContents();
+  }
+
+  // 左移差异视图位置
+  moveDiffLeft() {
+    if (this.diffViewPosition === 'center') {
+      this.diffViewPosition = 'left';
+      this.updatePanelContents();
+    } else if (this.diffViewPosition === 'right') {
+      this.diffViewPosition = 'center';
+      this.updatePanelContents();
+    }
+    // 如果已经在左侧，不做任何操作
+  }
+
+  // 右移差异视图位置
+  moveDiffRight() {
+    if (this.diffViewPosition === 'left') {
+      this.diffViewPosition = 'center';
+      this.updatePanelContents();
+    } else if (this.diffViewPosition === 'center') {
+      this.diffViewPosition = 'right';
+      this.updatePanelContents();
+    }
+    // 如果已经在右侧，不做任何操作
+  }
+
+  // 切换diff可见性
+  toggleDiffVisibility() {
+    this.isDiffVisible = !this.isDiffVisible;
+    this.updatePanelContents();
   }
 
   computeModifiedLineDiff(originalLines, modifiedLines) {
@@ -14973,6 +15077,27 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     if (!isInModal) return;
     
+    // 快捷键：Cmd/Ctrl + , 左移差异视图
+    if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+      event.preventDefault();
+      this.moveDiffLeft();
+      return;
+    }
+    
+    // 快捷键：Cmd/Ctrl + . 右移差异视图
+    if ((event.metaKey || event.ctrlKey) && event.key === '.') {
+      event.preventDefault();
+      this.moveDiffRight();
+      return;
+    }
+    
+    // 快捷键：Cmd/Ctrl + / 切换差异视图显示/隐藏
+    if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+      event.preventDefault();
+      this.toggleDiffVisibility();
+      return;
+    }
+    
     // Enter键：根据当前焦点所在的编辑器复制选中文本
     if (event.key === 'Enter') {
       // 如果焦点在中间编辑区，不处理Enter键，让其正常换行
@@ -15030,19 +15155,17 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     this.diffOverlay.style.height = "100%";
     this.diffOverlay.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
     this.diffOverlay.style.zIndex = "10";
-    this.diffOverlay.style.display = "block"; // 默认显示
+    this.diffOverlay.style.display = "block";
     this.diffOverlay.style.borderRadius = "4px";
     this.diffOverlay.style.padding = "8px";
     this.diffOverlay.style.boxSizing = "border-box";
     this.diffOverlay.style.overflow = "auto";
     this.diffOverlay.style.cursor = "pointer";
-    this.diffOverlay.title = "点击隐藏差异对比视图";
     
     // 点击差异视图任意位置切换显示/隐藏
     this.diffOverlay.addEventListener('click', (e) => {
-      // 防止事件冒泡到容器
       e.stopPropagation();
-      this.toggleDiffOverlay();
+      this.toggleDiffVisibility();
     });
     
     // 创建diff内容容器
@@ -15058,9 +15181,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     diffHeader.style.justifyContent = "space-between";
     diffHeader.style.alignItems = "center";
     diffHeader.style.marginBottom = "4px";
-    
-    
-        
     
     // 创建统一的diff显示区域
     const unifiedDiffPanel = diffContent.createDiv({ cls: "unified-diff-panel" });
@@ -15116,27 +15236,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     });
   }
 
-  toggleDiffOverlay() {
-    if (this.diffOverlay) {
-      const isVisible = this.diffOverlay.style.display !== 'none';
-      this.diffOverlay.style.display = isVisible ? 'none' : 'block';
-      
-      // 更新中间面板头部提示
-      const middleHeader = this.finalEditor?.closest('.hybrid-panel')?.querySelector('.panel-header');
-      if (middleHeader) {
-        if (!isVisible) {
-          middleHeader.style.cursor = "pointer";
-          middleHeader.title = "点击隐藏差异对比视图";
-        } else {
-          middleHeader.style.cursor = "pointer";
-          middleHeader.title = "点击显示差异对比视图";
-        }
-        // 始终保持点击事件，不要移除
-        middleHeader.onclick = () => this.toggleDiffOverlay();
-      }
-    }
-  }
-
   
   // 更新字体大小
   updateFontSize(newSize) {
@@ -15158,5 +15257,56 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if (fontDisplay && fontDisplay.textContent.includes('px')) {
       fontDisplay.textContent = newSize + 'px';
     }
+  }
+};
+
+// 设置标签页类
+var DiffApplySettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    
+    containerEl.createEl('h2', { text: 'Diff Apply 插件设置' });
+
+    // 字体大小设置
+    new import_obsidian.Setting(containerEl)
+      .setName('字体大小')
+      .setDesc('设置编辑器中的字体大小（像素）')
+      .addSlider(slider => slider
+        .setLimits(10, 24, 1)
+        .setValue(this.plugin.settings.fontSize)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.fontSize = value;
+          await this.plugin.saveSettings();
+        }));
+
+    // 默认差异视图位置设置
+    new import_obsidian.Setting(containerEl)
+      .setName('默认差异视图位置')
+      .setDesc('设置打开差异视图时的默认显示位置')
+      .addDropdown(dropdown => dropdown
+        .addOption('left', '左侧')
+        .addOption('center', '中间')
+        .addOption('right', '右侧')
+        .setValue(this.plugin.settings.defaultDiffPosition)
+        .onChange(async (value) => {
+          this.plugin.settings.defaultDiffPosition = value;
+          await this.plugin.saveSettings();
+        }));
+
+    // 快捷键说明
+    containerEl.createEl('h3', { text: '快捷键说明' });
+    const shortcutList = containerEl.createEl('ul');
+    shortcutList.createEl('li', { text: 'Cmd/Ctrl + , : 差异视图位置左移' });
+    shortcutList.createEl('li', { text: 'Cmd/Ctrl + . : 差异视图位置右移' });
+    shortcutList.createEl('li', { text: 'Cmd/Ctrl + / : 切换差异视图显示/隐藏' });
+    shortcutList.createEl('li', { text: 'Enter : 复制选中文本到编辑器' });
+    shortcutList.createEl('li', { text: 'Cmd/Ctrl + Z : 撤销编辑' });
   }
 };
