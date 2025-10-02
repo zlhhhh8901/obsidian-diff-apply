@@ -14454,6 +14454,9 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     this.leftPanel = null;
     this.middlePanel = null;
     this.rightPanel = null;
+    // 新增：编辑模式控制
+    this.isEditModeEnabled = false;
+    this.toggleEditModeBtn = null;
   }
 
   onOpen() {
@@ -14765,6 +14768,16 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     editor.style.cursor = "text";
     editor.readOnly = true;
     
+    // 添加内容变化监听器（仅在编辑模式下生效）
+    editor.addEventListener('input', () => {
+      if (this.isEditModeEnabled && this.isDiffVisible) {
+        // 使用setTimeout确保DOM更新完成后再更新差异视图
+        setTimeout(() => {
+          this.updateDiffView();
+        }, 100);
+      }
+    });
+    
     // 保存引用
     if (isOriginal) {
       this.originalEditor = editor;
@@ -14877,6 +14890,16 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     actionsContainer.style.justifyContent = "center";
     actionsContainer.style.flexWrap = "wrap";
 
+    // 新增：切换编辑模式按钮
+    this.toggleEditModeBtn = actionsContainer.createEl("button", { 
+      text: "Edit Mode"
+    });
+    this.toggleEditModeBtn.style.padding = "8px 16px";
+    this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
+    this.toggleEditModeBtn.style.color = "white";
+    this.toggleEditModeBtn.style.border = "none";
+    this.toggleEditModeBtn.style.borderRadius = "4px";
+    this.toggleEditModeBtn.style.cursor = "pointer";
   
     const copyAllModifiedBtn = actionsContainer.createEl("button", { 
       text: "Copy Modified to Editor"
@@ -14953,6 +14976,10 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     increaseBtn.style.cursor = "pointer";
 
     // 绑定事件
+    this.toggleEditModeBtn.addEventListener("click", () => {
+      this.toggleEditMode();
+    });
+
     copyAllModifiedBtn.addEventListener("click", () => {
       this.copyAllModified();
     });
@@ -15098,10 +15125,15 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       return;
     }
     
-    // Enter键：根据当前焦点所在的编辑器复制选中文本
+    // Enter键：根据当前焦点所在的编辑器复制选中文本（仅在只读模式下）
     if (event.key === 'Enter') {
       // 如果焦点在中间编辑区，不处理Enter键，让其正常换行
       if (activeElement === this.finalEditor) {
+        return;
+      }
+      
+      // 只有在只读模式下才处理Enter键复制功能
+      if (this.isEditModeEnabled) {
         return;
       }
       
@@ -15202,8 +15234,12 @@ var HybridDiffModal = class extends import_obsidian.Modal {
   }
 
   createUnifiedDiffContent(container) {
+    // 获取当前编辑器的实时内容
+    const currentOriginalText = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModifiedText = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+    
     // 使用jsdiff计算差异（修改版相比原文）
-    const diffResult = diffChars(this.originalText, this.modifiedText);
+    const diffResult = diffChars(currentOriginalText, currentModifiedText);
     
     // 创建统一的diff显示容器
     const diffContainer = container.createDiv();
@@ -15257,6 +15293,54 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if (fontDisplay && fontDisplay.textContent.includes('px')) {
       fontDisplay.textContent = newSize + 'px';
     }
+  }
+
+  // 切换编辑模式
+  toggleEditMode() {
+    this.isEditModeEnabled = !this.isEditModeEnabled;
+    
+    // 更新按钮文本和样式
+    if (this.isEditModeEnabled) {
+      this.toggleEditModeBtn.textContent = "Read Only";
+      this.toggleEditModeBtn.style.backgroundColor = "#FF9800";
+    } else {
+      this.toggleEditModeBtn.textContent = "Edit Mode";
+      this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
+    }
+    
+    // 切换编辑器的只读状态
+    if (this.originalEditor) {
+      this.originalEditor.readOnly = !this.isEditModeEnabled;
+    }
+    if (this.modifiedEditor) {
+      this.modifiedEditor.readOnly = !this.isEditModeEnabled;
+    }
+    
+    // 更新差异视图
+    this.updateDiffView();
+    
+    // 显示状态提示
+    const modeText = this.isEditModeEnabled ? "编辑模式" : "只读模式";
+    new import_obsidian.Notice(`已切换到${modeText}`);
+  }
+
+  // 更新差异视图
+  updateDiffView() {
+    // 如果差异视图不可见，不需要更新
+    if (!this.isDiffVisible) {
+      return;
+    }
+    
+    // 获取当前编辑器内容
+    const originalText = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const modifiedText = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+    
+    // 更新内部文本引用
+    this.originalText = originalText;
+    this.modifiedText = modifiedText;
+    
+    // 重新创建差异视图
+    this.updatePanelContents();
   }
 };
 
