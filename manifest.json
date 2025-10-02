@@ -1,0 +1,12 @@
+{
+  "id": "obsidian-diff-apply",
+  "name": "Diff Apply",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "在浮动窗口中使用 CodeMirror Merge 对选中文本与新文本进行高级对比与合并。",
+  "author": "obsidian-user",
+  "authorUrl": "https://example.com",
+  "isDesktopOnly": false,
+  "main": "main.js"
+}
+
