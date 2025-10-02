@@ -14900,16 +14900,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     this.toggleEditModeBtn.style.border = "none";
     this.toggleEditModeBtn.style.borderRadius = "4px";
     this.toggleEditModeBtn.style.cursor = "pointer";
-  
-    const copyAllModifiedBtn = actionsContainer.createEl("button", { 
-      text: "Copy Modified to Editor"
-    });
-    copyAllModifiedBtn.style.padding = "8px 16px";
-    copyAllModifiedBtn.style.backgroundColor = "#9C27B0";
-    copyAllModifiedBtn.style.color = "white";
-    copyAllModifiedBtn.style.border = "none";
-    copyAllModifiedBtn.style.borderRadius = "4px";
-    copyAllModifiedBtn.style.cursor = "pointer";
 
     const clearBtn = actionsContainer.createEl("button", { 
       text: "Clear" 
@@ -14978,10 +14968,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     // 绑定事件
     this.toggleEditModeBtn.addEventListener("click", () => {
       this.toggleEditMode();
-    });
-
-    copyAllModifiedBtn.addEventListener("click", () => {
-      this.copyAllModified();
     });
 
     clearBtn.addEventListener("click", () => {
@@ -15104,6 +15090,16 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     if (!isInModal) return;
     
+    // 快捷键：Cmd/Ctrl + / 切换差异视图显示/隐藏（始终可用）
+    if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+      event.preventDefault();
+      this.toggleDiffVisibility();
+      return;
+    }
+    
+    // 以下快捷键只有在差异对比视图显示状态下才可用
+    if (!this.isDiffVisible) return;
+    
     // 快捷键：Cmd/Ctrl + , 左移差异视图
     if ((event.metaKey || event.ctrlKey) && event.key === ',') {
       event.preventDefault();
@@ -15115,13 +15111,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if ((event.metaKey || event.ctrlKey) && event.key === '.') {
       event.preventDefault();
       this.moveDiffRight();
-      return;
-    }
-    
-    // 快捷键：Cmd/Ctrl + / 切换差异视图显示/隐藏
-    if ((event.metaKey || event.ctrlKey) && event.key === '/') {
-      event.preventDefault();
-      this.toggleDiffVisibility();
       return;
     }
     
@@ -15288,10 +15277,20 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       this.finalEditor.style.fontSize = newSize + 'px';
     }
     
+    // 更新差异视图容器的字体大小
+    if (this.diffContainer) {
+      this.diffContainer.style.fontSize = newSize + 'px';
+    }
+    
     // 更新字体显示
     const fontDisplay = this.containerEl.querySelector('.hybrid-actions span:last-child');
     if (fontDisplay && fontDisplay.textContent.includes('px')) {
       fontDisplay.textContent = newSize + 'px';
+    }
+    
+    // 如果差异视图可见，重新更新差异视图以应用新的字体大小
+    if (this.isDiffVisible) {
+      this.updateDiffView();
     }
   }
 
@@ -15318,10 +15317,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     // 更新差异视图
     this.updateDiffView();
-    
-    // 显示状态提示
-    const modeText = this.isEditModeEnabled ? "编辑模式" : "只读模式";
-    new import_obsidian.Notice(`已切换到${modeText}`);
   }
 
   // 更新差异视图
