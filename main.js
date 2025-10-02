@@ -14440,7 +14440,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     console.log("Original text:", this.originalText);
     console.log("Modified text:", this.modifiedText);
     
-    this.titleEl.setText("Diff Apply - 混合编辑");
+    this.titleEl.setText("Diff Apply");
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.style.width = "95vw";
     this.modalEl.style.maxWidth = "1400px";
@@ -14455,7 +14455,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
 
     // 添加使用提示
     const hint = container.createDiv({ cls: "hybrid-hint" });
-    hint.setText("左侧为原文，右侧为修改版。Cmd/Ctrl + 左/右箭头键 可将选中右/左内容复制到中间编辑区。点击中间编辑区头部显示/关闭差异对比视图。支持 Cmd+Z 撤销编辑区改动。");
+    hint.setText("Left: original, right: modified. Press Enter to copy selection to middle editor. Click middle header to toggle diff view. Cmd+Z to undo.");
     hint.style.padding = "8px";
     hint.style.background = "#f0f0f0";
     hint.style.borderRadius = "4px";
@@ -14481,7 +14481,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     leftPanel.style.minHeight = "0"; // 关键：允许flex子项缩小
     
     const leftHeader = leftPanel.createDiv({ cls: "panel-header" });
-    leftHeader.setText("原文（只读）");
+    leftHeader.setText("Original");
     leftHeader.style.padding = "8px";
     leftHeader.style.background = "#f5f5f5";
     leftHeader.style.borderBottom = "1px solid #ccc";
@@ -14507,7 +14507,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     middlePanel.style.minHeight = "0"; // 关键：允许flex子项缩小
     
     const middleHeader = middlePanel.createDiv({ cls: "panel-header" });
-    middleHeader.setText("最终版本（可编辑）");
+    middleHeader.setText("Editor");
     middleHeader.style.padding = "8px";
     middleHeader.style.background = "#4CAF50";
     middleHeader.style.color = "white";
@@ -14541,7 +14541,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     rightPanel.style.minHeight = "0"; // 关键：允许flex子项缩小
     
     const rightHeader = rightPanel.createDiv({ cls: "panel-header" });
-    rightHeader.setText("修改版（只读）");
+    rightHeader.setText("Modified");
     rightHeader.style.padding = "8px";
     rightHeader.style.background = "#f5f5f5";
     rightHeader.style.borderBottom = "1px solid #ccc";
@@ -14775,7 +14775,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
 
   
     const copyAllModifiedBtn = actionsContainer.createEl("button", { 
-      text: "复制修改版到编辑区" 
+      text: "Copy Modified to Editor"
     });
     copyAllModifiedBtn.style.padding = "8px 16px";
     copyAllModifiedBtn.style.backgroundColor = "#9C27B0";
@@ -14785,7 +14785,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     copyAllModifiedBtn.style.cursor = "pointer";
 
     const clearBtn = actionsContainer.createEl("button", { 
-      text: "清空编辑区" 
+      text: "Clear" 
     });
     clearBtn.style.padding = "8px 16px";
     clearBtn.style.backgroundColor = "#f44336";
@@ -14795,7 +14795,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     clearBtn.style.cursor = "pointer";
 
     const applyBtn = actionsContainer.createEl("button", { 
-      text: "应用修改",
+      text: "Apply",
       cls: "mod-cta" 
     });
     applyBtn.style.padding = "8px 16px";
@@ -14806,7 +14806,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     applyBtn.style.cursor = "pointer";
 
     const cancelBtn = actionsContainer.createEl("button", { 
-      text: "取消" 
+      text: "Cancel" 
     });
     cancelBtn.style.padding = "8px 16px";
     cancelBtn.style.backgroundColor = "#666";
@@ -14822,7 +14822,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     fontControlsContainer.style.gap = "8px";
     fontControlsContainer.style.marginLeft = "20px";
 
-    const fontLabel = fontControlsContainer.createEl("span", { text: "字体:" });
+    const fontLabel = fontControlsContainer.createEl("span", { text: "size:" });
     fontLabel.style.fontSize = "14px";
     fontLabel.style.color = "#ccc";
 
@@ -14891,7 +14891,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if (selectedText) {
       this.insertAtCursor(this.finalEditor, selectedText);
     } else {
-      new import_obsidian.Notice("请在原文中选中要复制的内容");
+      new import_obsidian.Notice("Please check what you want to copy in the original text");
     }
   }
 
@@ -14900,7 +14900,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if (selectedText) {
       this.insertAtCursor(this.finalEditor, selectedText);
     } else {
-      new import_obsidian.Notice("请在修改版中选中要复制的内容");
+      new import_obsidian.Notice("Please check what you want to copy in the modified text");
     }
   }
 
@@ -14908,9 +14908,9 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     const allModifiedText = this.modifiedEditor.value;
     if (allModifiedText) {
       this.finalEditor.value = allModifiedText;
-      new import_obsidian.Notice("已将修改版全部内容复制到编辑区");
+      new import_obsidian.Notice("Have copied.");
     } else {
-      new import_obsidian.Notice("修改版为空");
+      new import_obsidian.Notice("Modified version is empty.");
     }
   }
 
@@ -14967,38 +14967,44 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     if (!isInModal) return;
     
-    // 左箭头键：从修改版复制选中文本到编辑器
-    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowLeft') {
-      event.preventDefault();
-      // 检查修改版是否有选中文本
-      const selectedText = this.getSelectedText(this.modifiedEditor);
-      if (selectedText) {
-        this.copyFromModified();
-        // 清除修改版中的选中状态
-        this.modifiedEditor.setSelectionRange(this.modifiedEditor.selectionEnd, this.modifiedEditor.selectionEnd);
-        this.modifiedEditor.blur();
-        this.modifiedEditor.focus();
-      } else {
-        new import_obsidian.Notice("请在修改版中选中要复制的内容");
+    // Enter键：根据当前焦点所在的编辑器复制选中文本
+    if (event.key === 'Enter') {
+      // 如果焦点在中间编辑区，不处理Enter键，让其正常换行
+      if (activeElement === this.finalEditor) {
+        return;
       }
-      return;
-    }
-    
-    // 右箭头键：从原文复制选中文本到编辑器
-    if ((event.metaKey || event.ctrlKey) && event.key === 'ArrowRight') {
+      
       event.preventDefault();
-      // 检查原文是否有选中文本
-      const selectedText = this.getSelectedText(this.originalEditor);
-      if (selectedText) {
-        this.copyFromOriginal();
-        // 清除原文中的选中状态
-        this.originalEditor.setSelectionRange(this.originalEditor.selectionEnd, this.originalEditor.selectionEnd);
-        this.originalEditor.blur();
-        this.originalEditor.focus();
-      } else {
-        new import_obsidian.Notice("请在原文中选中要复制的内容");
+      
+      // 检查当前焦点是否在原文编辑器
+      if (activeElement === this.originalEditor) {
+        const selectedText = this.getSelectedText(this.originalEditor);
+        if (selectedText) {
+          this.copyFromOriginal();
+          // 清除原文中的选中状态
+          this.originalEditor.setSelectionRange(this.originalEditor.selectionEnd, this.originalEditor.selectionEnd);
+          this.originalEditor.blur();
+          this.originalEditor.focus();
+        } else {
+          new import_obsidian.Notice("请先在原文中选择要复制的文本");
+        }
+        return;
       }
-      return;
+      
+      // 检查当前焦点是否在修改版编辑器
+      if (activeElement === this.modifiedEditor) {
+        const selectedText = this.getSelectedText(this.modifiedEditor);
+        if (selectedText) {
+          this.copyFromModified();
+          // 清除修改版中的选中状态
+          this.modifiedEditor.setSelectionRange(this.modifiedEditor.selectionEnd, this.modifiedEditor.selectionEnd);
+          this.modifiedEditor.blur();
+          this.modifiedEditor.focus();
+        } else {
+          new import_obsidian.Notice("请先在修改版中选择要复制的文本");
+        }
+        return;
+      }
     }
   }
 
@@ -15063,7 +15069,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     // 添加提示信息
     const hint = diffContent.createDiv({ cls: "diff-hint" });
-    hint.setText("提示：此视图显示修改版相比原文的所有增删改变化");
     hint.style.fontSize = (this.fontSize - 1) + "px";
     hint.style.color = "#666";
     hint.style.textAlign = "center";
