@@ -14934,6 +14934,9 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       return;
     }
     
+    // 保存当前的滚动位置
+    const savedScrollTop = textarea.scrollTop;
+    
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const before = textarea.value.substring(0, start);
@@ -14943,6 +14946,9 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     textarea.value = newValue;
     textarea.focus();
     textarea.setSelectionRange(start + text.length, start + text.length);
+    
+    // 恢复之前的滚动位置
+    textarea.scrollTop = savedScrollTop;
     
     // 使用编辑器的历史记录系统
     if (textarea === this.finalEditor && this.addToHistory) {
