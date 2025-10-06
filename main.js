@@ -14777,7 +14777,32 @@ var HybridDiffModal = class extends import_obsidian.Modal {
         }, 100);
       }
     });
-    
+
+    // 添加双击事件监听器
+    editor.addEventListener('dblclick', (e) => {
+      // 只在只读模式下处理双击事件
+      if (this.isEditModeEnabled) return;
+
+      // 获取双击位置的行内容
+      const cursorPos = editor.selectionStart;
+      let currentLineStart = editor.value.lastIndexOf('\n', cursorPos - 1) + 1;
+      let currentLineEnd = editor.value.indexOf('\n', cursorPos);
+      if (currentLineEnd === -1) currentLineEnd = editor.value.length;
+
+      const lineContent = editor.value.substring(currentLineStart, currentLineEnd);
+
+      // 检查是否为非空行
+      if (lineContent.trim() !== '') {
+        // 复制到编辑区（直接复制行内容）
+        const textToCopy = lineContent;
+        if (isOriginal) {
+          this.insertAtCursor(this.finalEditor, textToCopy);
+        } else {
+          this.insertAtCursor(this.finalEditor, textToCopy);
+        }
+      }
+    });
+
     // 保存引用
     if (isOriginal) {
       this.originalEditor = editor;
@@ -15031,6 +15056,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     }
   }
 
+  
   getSelectedText(textarea) {
     // 检查是否有真正的选中文本
     const start = textarea.selectionStart;
@@ -15087,6 +15113,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     // 检查当前焦点是否在模态框内
     const activeElement = document.activeElement;
     const isInModal = this.modalEl.contains(activeElement);
+
     
     if (!isInModal) return;
     
@@ -15096,38 +15123,23 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       this.toggleDiffVisibility();
       return;
     }
-    
-    // 以下快捷键只有在差异对比视图显示状态下才可用
-    if (!this.isDiffVisible) return;
-    
-    // 快捷键：Cmd/Ctrl + , 左移差异视图
-    if ((event.metaKey || event.ctrlKey) && event.key === ',') {
-      event.preventDefault();
-      this.moveDiffLeft();
-      return;
-    }
-    
-    // 快捷键：Cmd/Ctrl + . 右移差异视图
-    if ((event.metaKey || event.ctrlKey) && event.key === '.') {
-      event.preventDefault();
-      this.moveDiffRight();
-      return;
-    }
-    
+
     // Enter键：根据当前焦点所在的编辑器复制选中文本（仅在只读模式下）
-    if (event.key === 'Enter') {
+    // Enter键功能独立于差异视图显示状态，始终可用
+    // 同时检查多种可能的Enter键表示方式
+    if (event.key === 'Enter' || event.key === 'Return' || event.keyCode === 13) {
       // 如果焦点在中间编辑区，不处理Enter键，让其正常换行
       if (activeElement === this.finalEditor) {
         return;
       }
-      
+
       // 只有在只读模式下才处理Enter键复制功能
       if (this.isEditModeEnabled) {
         return;
       }
-      
+
       event.preventDefault();
-      
+
       // 检查当前焦点是否在原文编辑器
       if (activeElement === this.originalEditor) {
         const selectedText = this.getSelectedText(this.originalEditor);
@@ -15142,7 +15154,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
         }
         return;
       }
-      
+
       // 检查当前焦点是否在修改版编辑器
       if (activeElement === this.modifiedEditor) {
         const selectedText = this.getSelectedText(this.modifiedEditor);
@@ -15157,6 +15169,25 @@ var HybridDiffModal = class extends import_obsidian.Modal {
         }
         return;
       }
+    }
+
+    // 以下快捷键只有在差异对比视图显示状态下才可用
+    if (!this.isDiffVisible) {
+      return;
+    }
+
+    // 快捷键：Cmd/Ctrl + , 左移差异视图
+    if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+      event.preventDefault();
+      this.moveDiffLeft();
+      return;
+    }
+    
+    // 快捷键：Cmd/Ctrl + . 右移差异视图
+    if ((event.metaKey || event.ctrlKey) && event.key === '.') {
+      event.preventDefault();
+      this.moveDiffRight();
+      return;
     }
   }
 
