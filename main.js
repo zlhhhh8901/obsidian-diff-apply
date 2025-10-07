@@ -14457,6 +14457,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     // 新增：编辑模式控制
     this.isEditModeEnabled = false;
     this.toggleEditModeBtn = null;
+    this.boundHandleKeyDown = null;
   }
 
   onOpen() {
@@ -14795,11 +14796,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       if (lineContent.trim() !== '') {
         // 复制到编辑区（直接复制行内容）
         const textToCopy = lineContent;
-        if (isOriginal) {
-          this.insertAtCursor(this.finalEditor, textToCopy);
-        } else {
-          this.insertAtCursor(this.finalEditor, textToCopy);
-        }
+        this.insertAtCursor(this.finalEditor, textToCopy);
       }
     });
 
@@ -15093,29 +15090,27 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     // 恢复之前的滚动位置
     textarea.scrollTop = savedScrollTop;
     
-    // 使用编辑器的历史记录系统
-    if (textarea === this.finalEditor && this.addToHistory) {
-      this.addToHistory(newValue);
-    }
-    
     // 触发输入事件以确保编辑器能正确处理撤销
     const inputEvent = new Event('input', { bubbles: true });
     textarea.dispatchEvent(inputEvent);
   }
 
-  
   addKeyboardShortcuts() {
     // 添加全局键盘事件监听，只在当前模态框内生效
-    document.addEventListener('keydown', this.handleKeyDown.bind(this), { capture: true });
+    if (!this.boundHandleKeyDown) {
+      this.boundHandleKeyDown = this.handleKeyDown.bind(this);
+    }
+    document.addEventListener('keydown', this.boundHandleKeyDown, { capture: true });
   }
 
   handleKeyDown(event) {
     // 检查当前焦点是否在模态框内
     const activeElement = document.activeElement;
     const isInModal = this.modalEl.contains(activeElement);
+    const rootElement = document.documentElement;
 
     
-    if (!isInModal) return;
+    if (!isInModal && activeElement !== document.body && activeElement !== rootElement && activeElement !== null) return;
     
     // 快捷键：Cmd/Ctrl + / 切换差异视图显示/隐藏（始终可用）
     if ((event.metaKey || event.ctrlKey) && event.key === '/') {
@@ -15193,7 +15188,10 @@ var HybridDiffModal = class extends import_obsidian.Modal {
 
   onClose() {
     // 移除键盘事件监听
-    document.removeEventListener('keydown', this.handleKeyDown.bind(this), { capture: true });
+    if (this.boundHandleKeyDown) {
+      document.removeEventListener('keydown', this.boundHandleKeyDown, { capture: true });
+      this.boundHandleKeyDown = null;
+    }
     this.contentEl.empty();
   }
 
@@ -15346,6 +15344,8 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       this.modifiedEditor.readOnly = !this.isEditModeEnabled;
     }
     
+    new import_obsidian.Notice(this.isEditModeEnabled ? "Edit Mode" : "Read Only");
+    
     // 更新差异视图
     this.updateDiffView();
   }
@@ -15417,6 +15417,7 @@ var DiffApplySettingTab = class extends import_obsidian.PluginSettingTab {
     shortcutList.createEl('li', { text: 'Cmd/Ctrl + . : 差异视图位置右移' });
     shortcutList.createEl('li', { text: 'Cmd/Ctrl + / : 切换差异视图显示/隐藏' });
     shortcutList.createEl('li', { text: 'Enter : 复制选中文本到编辑器' });
+    shortcutList.createEl('li', { text: '双击只读栏任意非空行：复制该行到编辑器' });
     shortcutList.createEl('li', { text: 'Cmd/Ctrl + Z : 撤销编辑' });
   }
 };
