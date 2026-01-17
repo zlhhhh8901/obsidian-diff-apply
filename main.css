@@ -3056,3 +3056,21 @@
 .hybrid-panel {
   position: relative;
 }
+
+.hybrid-diff-modal textarea.diff-apply-copy-flash {
+  animation: diff-apply-copy-flash 700ms ease-out;
+}
+
+.hybrid-diff-modal textarea.diff-apply-copy-flash::selection {
+  background-color: #ffe58a;
+  color: #111;
+}
+
+@keyframes diff-apply-copy-flash {
+  0% {
+    background-color: #fff3bf;
+  }
+  100% {
+    background-color: #ffffff;
+  }
+}

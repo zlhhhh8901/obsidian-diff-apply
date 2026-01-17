@@ -14451,6 +14451,12 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     this.diffViewPosition = opts.defaultDiffPosition || 'center'; // 使用设置中的默认位置
     this.isDiffVisible = true;
     this.diffOverlay = null;
+    this.diffScrollContainer = null;
+    this.diffOverlayScrollTop = 0;
+    this.diffScrollContainerScrollTop = 0;
+    this.diffContainer = null;
+    this.isDiffDirty = false;
+    this.copyFlashTimer = null;
     this.leftPanel = null;
     this.middlePanel = null;
     this.rightPanel = null;
@@ -14654,13 +14660,34 @@ var HybridDiffModal = class extends import_obsidian.Modal {
         const content = targetPanel.querySelector('.panel-content');
         if (content) {
           this.createDiffOverlay(content);
+          this.isDiffDirty = false;
+          this.restoreDiffScroll();
         }
       }
     }
   }
 
+  saveDiffScroll() {
+    if (this.diffOverlay) {
+      this.diffOverlayScrollTop = this.diffOverlay.scrollTop;
+    }
+    if (this.diffScrollContainer) {
+      this.diffScrollContainerScrollTop = this.diffScrollContainer.scrollTop;
+    }
+  }
+
+  restoreDiffScroll() {
+    if (this.diffOverlay) {
+      this.diffOverlay.scrollTop = this.diffOverlayScrollTop;
+    }
+    if (this.diffScrollContainer) {
+      this.diffScrollContainer.scrollTop = this.diffScrollContainerScrollTop;
+    }
+  }
+
   // 清除所有diff覆盖层
   clearAllDiffOverlays() {
+    this.saveDiffScroll();
     [this.leftPanel, this.middlePanel, this.rightPanel].forEach(panel => {
       if (panel) {
         const existingOverlay = panel.querySelector('.diff-overlay');
@@ -14670,6 +14697,8 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       }
     });
     this.diffOverlay = null;
+    this.diffScrollContainer = null;
+    this.diffContainer = null;
   }
 
   // 切换diff位置
@@ -14705,7 +14734,28 @@ var HybridDiffModal = class extends import_obsidian.Modal {
   // 切换diff可见性
   toggleDiffVisibility() {
     this.isDiffVisible = !this.isDiffVisible;
-    this.updatePanelContents();
+    if (this.isDiffVisible) {
+      this.showDiffOverlay();
+    } else {
+      this.hideDiffOverlay();
+    }
+  }
+
+  showDiffOverlay() {
+    if (!this.diffOverlay || this.isDiffDirty) {
+      this.updatePanelContents();
+      return;
+    }
+    this.diffOverlay.style.display = "block";
+    this.restoreDiffScroll();
+  }
+
+  hideDiffOverlay() {
+    if (!this.diffOverlay) {
+      return;
+    }
+    this.saveDiffScroll();
+    this.diffOverlay.style.display = "none";
   }
 
   computeModifiedLineDiff(originalLines, modifiedLines) {
@@ -14771,11 +14821,16 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     // 添加内容变化监听器（仅在编辑模式下生效）
     editor.addEventListener('input', () => {
-      if (this.isEditModeEnabled && this.isDiffVisible) {
+      if (!this.isEditModeEnabled) {
+        return;
+      }
+      if (this.isDiffVisible) {
         // 使用setTimeout确保DOM更新完成后再更新差异视图
         setTimeout(() => {
           this.updateDiffView();
         }, 100);
+      } else {
+        this.isDiffDirty = true;
       }
     });
 
@@ -15012,6 +15067,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       this.updateFontSize(newSize);
       if (this.plugin) {
         this.plugin.settings.fontSize = newSize;
+        void this.plugin.saveSettings();
       }
     });
 
@@ -15021,6 +15077,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       this.updateFontSize(newSize);
       if (this.plugin) {
         this.plugin.settings.fontSize = newSize;
+        void this.plugin.saveSettings();
       }
     });
   }
@@ -15074,6 +15131,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
       return;
     }
     
+    const previousActive = document.activeElement;
     // 保存当前的滚动位置
     const savedScrollTop = textarea.scrollTop;
     
@@ -15081,11 +15139,13 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     const end = textarea.selectionEnd;
     const before = textarea.value.substring(0, start);
     const after = textarea.value.substring(end);
+    const insertStart = start;
+    const insertEnd = start + text.length;
     
     const newValue = before + text + after;
     textarea.value = newValue;
     textarea.focus();
-    textarea.setSelectionRange(start + text.length, start + text.length);
+    this.flashCopiedRange(textarea, insertStart, insertEnd, previousActive);
     
     // 恢复之前的滚动位置
     textarea.scrollTop = savedScrollTop;
@@ -15093,6 +15153,28 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     // 触发输入事件以确保编辑器能正确处理撤销
     const inputEvent = new Event('input', { bubbles: true });
     textarea.dispatchEvent(inputEvent);
+  }
+
+  flashCopiedRange(textarea, start, end, previousActive) {
+    if (start === end) {
+      return;
+    }
+    const restoreTarget = previousActive instanceof HTMLElement ? previousActive : null;
+    const flashClass = "diff-apply-copy-flash";
+    textarea.classList.remove(flashClass);
+    void textarea.offsetWidth;
+    textarea.classList.add(flashClass);
+    textarea.setSelectionRange(start, end);
+    if (this.copyFlashTimer) {
+      clearTimeout(this.copyFlashTimer);
+    }
+    this.copyFlashTimer = setTimeout(() => {
+      textarea.classList.remove(flashClass);
+      textarea.setSelectionRange(end, end);
+      if (restoreTarget && restoreTarget !== textarea && this.modalEl.contains(restoreTarget)) {
+        restoreTarget.focus();
+      }
+    }, 450);
   }
 
   addKeyboardShortcuts() {
@@ -15142,8 +15224,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
           this.copyFromOriginal();
           // 清除原文中的选中状态
           this.originalEditor.setSelectionRange(this.originalEditor.selectionEnd, this.originalEditor.selectionEnd);
-          this.originalEditor.blur();
-          this.originalEditor.focus();
         } else {
           new import_obsidian.Notice("请先在原文中选择要复制的文本");
         }
@@ -15157,8 +15237,6 @@ var HybridDiffModal = class extends import_obsidian.Modal {
           this.copyFromModified();
           // 清除修改版中的选中状态
           this.modifiedEditor.setSelectionRange(this.modifiedEditor.selectionEnd, this.modifiedEditor.selectionEnd);
-          this.modifiedEditor.blur();
-          this.modifiedEditor.focus();
         } else {
           new import_obsidian.Notice("请先在修改版中选择要复制的文本");
         }
@@ -15191,6 +15269,10 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     if (this.boundHandleKeyDown) {
       document.removeEventListener('keydown', this.boundHandleKeyDown, { capture: true });
       this.boundHandleKeyDown = null;
+    }
+    if (this.copyFlashTimer) {
+      clearTimeout(this.copyFlashTimer);
+      this.copyFlashTimer = null;
     }
     this.contentEl.empty();
   }
@@ -15238,6 +15320,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     unifiedDiffPanel.style.border = "1px solid #ddd";
     unifiedDiffPanel.style.borderRadius = "4px";
     unifiedDiffPanel.style.overflow = "auto";
+    this.diffScrollContainer = unifiedDiffPanel;
     
     const unifiedDiffContent = unifiedDiffPanel.createDiv({ cls: "unified-diff-content" });
     unifiedDiffContent.style.padding = "12px";
@@ -15261,6 +15344,7 @@ var HybridDiffModal = class extends import_obsidian.Modal {
     
     // 创建统一的diff显示容器
     const diffContainer = container.createDiv();
+    this.diffContainer = diffContainer;
     diffContainer.style.fontFamily = "monospace";
     diffContainer.style.fontSize = this.fontSize + "px";
     diffContainer.style.lineHeight = "1.5";
