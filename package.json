@@ -1,0 +1,32 @@
+{
+  "name": "obsidian-diff-apply",
+  "version": "0.1.0",
+  "description": "Obsidian plugin for hybrid diff + apply workflows.",
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs --production && node scripts/copy-css.mjs",
+    "build:css": "node scripts/copy-css.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "diff",
+    "merge"
+  ],
+  "author": "obsidian-user",
+  "license": "MIT",
+  "dependencies": {
+    "diff": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.2.0",
+    "@types/node": "^20.11.30",
+    "esbuild": "^0.21.5",
+    "obsidian": "^1.5.8",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

@@ -20,8 +20,8 @@
    ```
 2. 将以下文件放入该目录：
    - `main.js`
-   - `manifest.json` 
-   - `main.css`
+   - `manifest.json`
+   - `styles.css`（或保留 `main.css`，两者内容一致）
 3. 在 Obsidian 设置中启用"Diff Apply"插件
 
 ### 方法二：开发者安装
@@ -128,7 +128,23 @@
 - **兼容版本**：Obsidian 1.5.0+
 - **插件类型**：社区插件
 - **开发语言**：TypeScript/JavaScript
-- **依赖库**：CodeMirror, Obsidian API
+- **依赖库**：diff, Obsidian API
+
+## 🧱 开发与构建
+
+如果你希望基于 TypeScript 进行二次开发，请先安装依赖并运行构建：
+
+```bash
+npm install
+npm run build
+```
+
+常用命令：
+
+- `npm run dev`：监听 `src/` 并实时构建 `main.js`
+- `npm run build`：生成生产版本并同步 `styles.css`/`main.css`
+- `npm run test`：运行基础单元测试
+- `npm run typecheck`：仅做 TypeScript 类型检查
 
 ## 📝 更新日志
 
