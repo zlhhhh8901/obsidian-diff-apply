@@ -3,3 +3,4 @@ coverage/
 .DS_Store
 *.log
 data.json
+CLAUDE.md
