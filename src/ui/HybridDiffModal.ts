@@ -346,8 +346,12 @@ export class HybridDiffModal extends Modal {
       }
     });
 
-    editor.addEventListener("dblclick", () => {
-      if (this.isEditModeEnabled) return;
+    editor.addEventListener("dblclick", (event) => {
+      if (this.isEditModeEnabled) {
+        return;
+      }
+
+      event.preventDefault();
 
       const cursorPos = editor.selectionStart;
       const currentLineStart = editor.value.lastIndexOf("\n", cursorPos - 1) + 1;
@@ -363,6 +367,10 @@ export class HybridDiffModal extends Modal {
         const textToCopy = lineContent;
         this.insertAtCursor(this.finalEditor, textToCopy);
       }
+
+      window.setTimeout(() => {
+        editor.setSelectionRange(cursorPos, cursorPos);
+      }, 0);
     });
 
     if (isOriginal) {
