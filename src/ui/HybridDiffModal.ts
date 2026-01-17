@@ -37,7 +37,7 @@ export class HybridDiffModal extends Modal {
   private diffContainer: HTMLDivElement | null = null;
   private isDiffDirty = false;
 
-  private copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
+  private copyFlashTimer: ReturnType<typeof window.setTimeout> | null = null;
   private leftPanel: HTMLDivElement | null = null;
   private middlePanel: HTMLDivElement | null = null;
   private rightPanel: HTMLDivElement | null = null;
@@ -672,21 +672,16 @@ export class HybridDiffModal extends Modal {
       return;
     }
     const restoreTarget = previousActive instanceof HTMLElement ? previousActive : null;
-    const flashClass = "diff-apply-copy-flash";
-    textarea.classList.remove(flashClass);
-    void textarea.offsetWidth;
-    textarea.classList.add(flashClass);
     textarea.setSelectionRange(start, end);
     if (this.copyFlashTimer) {
       clearTimeout(this.copyFlashTimer);
     }
     this.copyFlashTimer = window.setTimeout(() => {
-      textarea.classList.remove(flashClass);
       textarea.setSelectionRange(end, end);
       if (restoreTarget && restoreTarget !== textarea && this.modalEl.contains(restoreTarget)) {
         restoreTarget.focus();
       }
-    }, 450);
+    }, 600);
   }
 
   private addKeyboardShortcuts(): void {
