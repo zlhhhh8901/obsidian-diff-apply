@@ -1,4 +1,5 @@
 {
   "fontSize": 14,
-  "defaultDiffPosition": "center"
+  "defaultDiffPosition": "center",
+  "smartDblClickInsertNewlines": true
 }

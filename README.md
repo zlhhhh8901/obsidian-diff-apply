@@ -1,19 +1,33 @@
-# Diff Apply - Obsidian 文本对比与合并插件
+# Obsidian Diff Apply
 
-一个强大的 Obsidian 插件，提供高级文本对比与合并功能。通过直观的三栏界面，让您轻松对比原文、修改版本，并在可视化环境中进行精确的文本编辑和合并操作。
+## 中文
 
-## ✨ 主要特性
+### 项目概述
+一个 Obsidian 插件，用于便捷对比、修改笔记内容。
 
-- **🔍 智能文本对比**：精确的行级和字符级差异检测
-- **📝 混合编辑模式**：三栏布局支持原文、编辑器和修改版同时显示
-- **⚡ 快捷操作**：丰富的键盘快捷键支持，提升编辑效率
-- **🎨 可视化差异**：高亮显示文本变更，直观展示差异内容
-- **⚙️ 灵活配置**：可自定义字体大小、差异视图位置等设置
-- **📋 剪贴板集成**：自动读取剪贴板内容作为对比源
+**使用演示**：
 
-## 🚀 安装方法
+<video src="https://github.com/user-attachments/assets/229fb103-c10c-4619-a7c4-928d2cf03bcf" controls="controls" width="100%"></video>
 
-### 方法一：手动安装
+### 使用方法
+
+1. **选择文本**：在 Obsidian 笔记中选中需要修改的文本段落
+2. **打开界面**：打开 Diff Apply 界面，左侧显示原文，右侧显示修改版（从剪贴板读取），中间编辑区
+3. **查看差异**：
+   - `Cmd/Ctrl + /` 打开/隐藏差异对比视图
+   - `Cmd/Ctrl + ,/.` 左右移动差异对比视图位置
+4. **编辑文本**：
+   - 选中文本后按 `Enter` 可复制到编辑器光标位置，或替换选中文本
+   - 双击某行可复制整个行到编辑区
+5. **切换模式**：
+   - 点击下方按钮从只读模式（Read Only）切换到编辑模式（Edit Mode）
+   - 可直接修改原文区和修改区的内容，差异视图会实时更新
+6. **应用更改**：
+   - 点击 **Apply** 按钮应用修改到笔记
+   - 点击 **Cancel** 按钮取消并退出
+
+### 安装方法
+
 1. 下载插件文件到 Obsidian 插件目录：
    ```
    .obsidian/plugins/obsidian-diff-apply/
@@ -21,172 +35,41 @@
 2. 将以下文件放入该目录：
    - `main.js`
    - `manifest.json`
-   - `styles.css`（或保留 `main.css`，两者内容一致）
-3. 在 Obsidian 设置中启用"Diff Apply"插件
-
-### 方法二：开发者安装
-1. 克隆或下载项目到插件目录
-2. 重启 Obsidian
-3. 在设置 → 第三方插件中启用插件
-
-## 📖 使用指南
-
-### 基本使用流程
-
-1. **选择文本**：在笔记中选中要对比的原始文本片段
-2. **复制对比内容**：将要对比的新文本复制到剪贴板
-3. **启动对比**：
-   - 使用命令面板：`Ctrl/Cmd + P` → 搜索"混合编辑所选文本"
-   - 或右键选中文本 → 选择"混合编辑（Hybrid Diff）"
-4. **编辑合并**：在三栏界面中进行文本编辑和合并
-5. **应用更改**：点击"应用"按钮将最终结果替换到原文档
-
-### 界面说明
-
-插件打开后会显示三栏布局：
-
-- **左栏（Original）**：显示原始选中的文本，只读模式
-- **中栏（Editor）**：可编辑区域，用于创建最终的合并结果
-- **右栏（Modified）**：显示剪贴板中的修改版本，只读模式
-
-### 操作按钮
-
-- **编辑模式**：切换编辑器的只读/编辑状态
-- **清空**：清空编辑器内容
-- **应用**：将编辑器内容应用到原文档
-- **取消**：关闭对比视图
-- **字体大小调节**：使用 + / - 按钮调整字体大小，调整后立即生效
-
-### 差异视图
-
-- 差异高亮会在其中一栏显示，帮助您识别文本变更
-- 可以通过快捷键在三栏之间切换差异视图位置（仅在差异视图显示时可用）
-- 支持隐藏/显示差异视图以获得更清晰的编辑体验
-- 使用 `Cmd/Ctrl + /` 可随时切换差异视图的显示状态
-
-## ⌨️ 快捷键参考
-
-| 快捷键 | 功能 | 使用条件 |
-|--------|------|----------|
-| `Cmd/Ctrl + ,` | 差异视图位置左移 | 仅在差异视图显示时可用 |
-| `Cmd/Ctrl + .` | 差异视图位置右移 | 仅在差异视图显示时可用 |
-| `Cmd/Ctrl + /` | 切换差异视图显示/隐藏 | 始终可用 |
-| `Enter` | 复制选中文本到编辑器 | 仅在只读模式下可用 |
-| `Cmd/Ctrl + Z` | 撤销编辑操作 | 在编辑器中可用 |
-| 双击只读栏非空行 | 将该行快速复制到编辑器 | 仅在只读模式下可用 |
-
-## ⚙️ 配置选项
-
-在 Obsidian 设置 → 插件选项 → Diff Apply 中可以配置：
-
-### 字体大小
-- 范围：10-24 像素
-- 默认：14 像素
-- 影响所有编辑器面板的字体显示
-
-### 默认差异视图位置
-- **左侧**：差异视图显示在原文栏
-- **中间**：差异视图显示在编辑器栏（推荐）
-- **右侧**：差异视图显示在修改版栏
-
-## 🎯 使用场景
-
-### 文档修订
-- 对比文档的不同版本
-- 合并来自多个来源的修改建议
-- 处理协作编辑中的冲突内容
-
-### 内容整理
-- 整合笔记片段
-- 优化文章结构和表达
-- 合并重复或相似的内容
-
-### 翻译校对
-- 对比原文和译文
-- 校对翻译质量
-- 合并多个翻译版本
-
-### 代码片段
-- 对比代码变更
-- 合并代码修改
-- 学习代码差异
-
-## 💡 使用技巧
-
-1. **预处理文本**：使用前确保文本格式一致，避免不必要的格式差异
-2. **分段处理**：对于长文档，建议分段进行对比和合并
-3. **善用快捷键**：熟练使用快捷键可以大幅提升操作效率
-   - 使用 `Cmd/Ctrl + /` 随时切换差异视图显示
-   - 在差异视图显示时使用 `Cmd/Ctrl + ,/.` 调整视图位置
-4. **字体大小调节**：使用界面上的 +/- 按钮调整字体大小，调整后立即生效
-5. **保存习惯**：重要修改前建议先保存文档备份
-6. **差异定位**：利用差异高亮快速定位需要关注的变更部分
-7. **编辑模式切换**：根据需要在只读和编辑模式之间切换，提高操作精确度
-
-## 🔧 技术信息
-
-- **兼容版本**：Obsidian 1.5.0+
-- **插件类型**：社区插件
-- **开发语言**：TypeScript/JavaScript
-- **依赖库**：diff, Obsidian API
-
-## 🧱 开发与构建
-
-如果你希望基于 TypeScript 进行二次开发，请先安装依赖并运行构建：
-
-```bash
-npm install
-npm run build
-```
-
-常用命令：
-
-- `npm run dev`：监听 `src/` 并实时构建 `main.js`
-- `npm run build`：生成生产版本并同步 `styles.css`/`main.css`
-- `npm run test`：运行基础单元测试
-- `npm run typecheck`：仅做 TypeScript 类型检查
-
-## 📝 更新日志
-
-### v0.1.1 (最新优化版本)
-- 🔧 **字体大小控制优化**：调整字体大小后立即生效，无需重新打开视图
-- 🎨 **界面简化**：移除 "Copy Modified to Editor" 按钮，界面更加简洁
-- ⌨️ **快捷键逻辑优化**：
-  - `Cmd/Ctrl + /` 始终可用于切换差异视图显示/隐藏
-  - `Cmd/Ctrl + ,/.` 仅在差异视图显示时可用于调整视图位置
-- 📖 **文档更新**：完善使用说明和快捷键参考
-
-### v0.1.0
-- 🎉 初始版本发布
-- ✅ 基础三栏对比功能
-- ✅ 智能差异检测
-- ✅ 快捷键支持
-- ✅ 基础设置选项
-- ✅ 剪贴板集成
-
-## 🤝 贡献与反馈
-
-### 问题报告
-如果您遇到任何问题或有改进建议，欢迎：
-- 在 GitHub 上提交 Issue
-- 通过邮件联系开发者
-- 在 Obsidian 社区论坛讨论
-
-### 功能建议
-我们欢迎您的功能建议，特别是：
-- 新的对比算法
-- UI/UX 改进建议
-- 性能优化方案
-- 新的使用场景
-
-## 📄 许可证
-
-本插件遵循 MIT 许可证。详细信息请查看 LICENSE 文件。
-
-## 🙏 致谢
-
-感谢 Obsidian 社区的支持和 CodeMirror 项目提供的强大编辑器组件。
+   - `styles.css`
+3. 在 Obsidian 设置中启用 "Diff Apply" 插件
 
 ---
 
-**享受更高效的文本对比与合并体验！** 🚀
+## English
+
+### Overview
+An Obsidian plugin that provides text comparison and editing features to help you conveniently modify note content.
+
+### How to Use
+
+1. **Select Text**: Select the text you want to modify in your Obsidian note
+2. **Open Interface**: Open Diff Apply interface. The left side shows the original text, the right side shows the modified version (read from clipboard)
+3. **View Differences**:
+   - `Cmd/Ctrl + /` to toggle diff view
+   - `Cmd/Ctrl + ,/.` to move view position left/right
+4. **Edit Text**:
+   - Select text and press `Enter` to copy to editor cursor position or replace selected text
+   - Double-click a line to copy the entire paragraph to editor
+5. **Switch Mode**:
+   - Click the button below to switch from Read Only mode to Edit Mode
+   - You can directly modify content in both original and modified areas, diff view updates in real-time
+6. **Apply Changes**:
+   - Click **Apply** button to apply changes to your note
+   - Click **Cancel** button to exit without saving
+
+### Installation
+
+1. Download plugin files to Obsidian plugin directory:
+   ```
+   .obsidian/plugins/obsidian-diff-apply/
+   ```
+2. Place the following files in that directory:
+   - `main.js`
+   - `manifest.json`
+   - `styles.css`
+3. Enable "Diff Apply" plugin in Obsidian settings
