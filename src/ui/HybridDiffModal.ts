@@ -31,6 +31,15 @@ export class HybridDiffModal extends Modal {
   private modifiedEditor: HTMLTextAreaElement | null = null;
   private finalEditor: HTMLTextAreaElement | null = null;
 
+  // While interacting in Original/Modified, keep Editor selection/caret visually visible
+  // by rendering a mirror overlay (textarea loses selection/caret visuals when blurred).
+  private finalEditorMirrorEl: HTMLDivElement | null = null;
+  private finalEditorMirrorScrollEl: HTMLDivElement | null = null;
+  private finalEditorMirrorContentEl: HTMLDivElement | null = null;
+  private boundSyncFinalEditorMirror: (() => void) | null = null;
+  private boundSyncFinalEditorMirrorFocusIn: ((event: FocusEvent) => void) | null = null;
+  private boundSyncFinalEditorMirrorFocusOut: ((event: FocusEvent) => void) | null = null;
+
   // Diff view state
   private diffViewPosition: DiffViewPosition;
   private isDiffVisible = true;
@@ -45,6 +54,7 @@ export class HybridDiffModal extends Modal {
   private leftPanel: HTMLDivElement | null = null;
   private middlePanel: HTMLDivElement | null = null;
   private rightPanel: HTMLDivElement | null = null;
+  private isPointerInSidePanels = false;
 
   // Edit mode state
   private isEditModeEnabled = false;
@@ -170,6 +180,7 @@ export class HybridDiffModal extends Modal {
     const finalEditor = this.createEditableEditor(middleContent, "");
     finalEditor.style.height = "100%";
     this.finalEditor = finalEditor;
+    this.setupFinalEditorMirror(middleContent);
 
     this.rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel modified" });
     this.rightPanel.style.flex = "1";
@@ -197,7 +208,166 @@ export class HybridDiffModal extends Modal {
     modifiedEditor.style.height = "100%";
     this.modifiedEditor = modifiedEditor;
 
+    // Treat mouse interaction in side panels as "active" even if focus lands on <body>
+    // (e.g. clicking panel chrome), so the Editor's selection/caret hint stays visible.
+    const setSidePointerActive = (active: boolean) => {
+      this.isPointerInSidePanels = active;
+      this.syncFinalEditorMirror();
+    };
+    this.leftPanel.addEventListener("pointerenter", () => setSidePointerActive(true));
+    this.leftPanel.addEventListener("pointerleave", () => setSidePointerActive(false));
+    this.rightPanel.addEventListener("pointerenter", () => setSidePointerActive(true));
+    this.rightPanel.addEventListener("pointerleave", () => setSidePointerActive(false));
+
     this.updatePanelContents();
+  }
+
+  private setupFinalEditorMirror(middleContent: HTMLElement): void {
+    if (!this.finalEditor) {
+      return;
+    }
+
+    const mirrorEl = middleContent.createDiv({ cls: "diff-apply-editor-mirror" });
+    const mirrorScrollEl = mirrorEl.createDiv({ cls: "diff-apply-editor-mirror-scroll" });
+    const mirrorContentEl = mirrorScrollEl.createDiv({ cls: "diff-apply-editor-mirror-content" });
+
+    this.finalEditorMirrorEl = mirrorEl;
+    this.finalEditorMirrorScrollEl = mirrorScrollEl;
+    this.finalEditorMirrorContentEl = mirrorContentEl;
+
+    this.syncFinalEditorMirrorStyles();
+
+    const sync = () => this.syncFinalEditorMirror();
+    this.boundSyncFinalEditorMirror = sync;
+
+    this.finalEditor.addEventListener("input", sync);
+    this.finalEditor.addEventListener("select", sync);
+    this.finalEditor.addEventListener("keyup", sync);
+    this.finalEditor.addEventListener("mouseup", sync);
+    this.finalEditor.addEventListener("scroll", sync);
+
+    // Focus moves between the three panes; keep mirror visibility in sync.
+    this.boundSyncFinalEditorMirrorFocusIn = () => sync();
+    this.boundSyncFinalEditorMirrorFocusOut = () => window.setTimeout(sync, 0);
+    this.modalEl.addEventListener("focusin", this.boundSyncFinalEditorMirrorFocusIn, {
+      capture: true,
+    });
+    this.modalEl.addEventListener("focusout", this.boundSyncFinalEditorMirrorFocusOut, {
+      capture: true,
+    });
+
+    this.syncFinalEditorMirror();
+  }
+
+  private syncFinalEditorMirrorStyles(): void {
+    if (!this.finalEditor || !this.finalEditorMirrorEl || !this.finalEditorMirrorScrollEl) {
+      return;
+    }
+
+    const computed = window.getComputedStyle(this.finalEditor);
+
+    this.finalEditorMirrorEl.style.position = "absolute";
+    this.finalEditorMirrorEl.style.top = "0";
+    this.finalEditorMirrorEl.style.left = "0";
+    this.finalEditorMirrorEl.style.right = "0";
+    this.finalEditorMirrorEl.style.bottom = "0";
+    this.finalEditorMirrorEl.style.pointerEvents = "none";
+    this.finalEditorMirrorEl.style.zIndex = "2";
+    this.finalEditorMirrorEl.style.display = "none";
+
+    this.finalEditorMirrorScrollEl.style.width = "100%";
+    this.finalEditorMirrorScrollEl.style.height = "100%";
+    this.finalEditorMirrorScrollEl.style.overflow = "auto";
+    this.finalEditorMirrorScrollEl.style.boxSizing = computed.boxSizing;
+    this.finalEditorMirrorScrollEl.style.padding = computed.padding;
+    this.finalEditorMirrorScrollEl.style.fontFamily = computed.fontFamily;
+    this.finalEditorMirrorScrollEl.style.fontSize = computed.fontSize;
+    this.finalEditorMirrorScrollEl.style.lineHeight = computed.lineHeight;
+    this.finalEditorMirrorScrollEl.style.letterSpacing = computed.letterSpacing;
+    this.finalEditorMirrorScrollEl.style.backgroundColor = computed.backgroundColor;
+    this.finalEditorMirrorScrollEl.style.color = computed.color;
+    this.finalEditorMirrorScrollEl.style.whiteSpace = "pre-wrap";
+    this.finalEditorMirrorScrollEl.style.wordBreak = "break-word";
+  }
+
+  private syncFinalEditorMirror(): void {
+    if (
+      !this.finalEditor ||
+      !this.finalEditorMirrorEl ||
+      !this.finalEditorMirrorScrollEl ||
+      !this.finalEditorMirrorContentEl
+    ) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const isInteractingWithSidePanels =
+      activeElement === this.originalEditor ||
+      activeElement === this.modifiedEditor ||
+      this.isPointerInSidePanels;
+
+    if (!isInteractingWithSidePanels) {
+      this.finalEditorMirrorEl.style.display = "none";
+      return;
+    }
+
+    // Keep scroll in sync so caret/selection lines up with the visible area.
+    this.finalEditorMirrorScrollEl.scrollTop = this.finalEditor.scrollTop;
+    this.finalEditorMirrorScrollEl.scrollLeft = this.finalEditor.scrollLeft;
+
+    const value = this.finalEditor.value ?? "";
+    const selectionStart = this.finalEditor.selectionStart ?? 0;
+    const selectionEnd = this.finalEditor.selectionEnd ?? 0;
+
+    // Only show mirror when textarea is blurred (otherwise the native selection/caret is visible).
+    if (document.activeElement === this.finalEditor) {
+      this.finalEditorMirrorEl.style.display = "none";
+      return;
+    }
+
+    this.finalEditorMirrorEl.style.display = "block";
+    this.renderFinalEditorMirrorContent(value, selectionStart, selectionEnd);
+  }
+
+  private renderFinalEditorMirrorContent(value: string, start: number, end: number): void {
+    if (!this.finalEditorMirrorContentEl) {
+      return;
+    }
+
+    const contentEl = this.finalEditorMirrorContentEl;
+    contentEl.textContent = "";
+
+    const safeStart = Math.max(0, Math.min(start, value.length));
+    const safeEnd = Math.max(0, Math.min(end, value.length));
+    const rangeStart = Math.min(safeStart, safeEnd);
+    const rangeEnd = Math.max(safeStart, safeEnd);
+
+    const frag = document.createDocumentFragment();
+
+    const before = value.slice(0, rangeStart);
+    const after = value.slice(rangeEnd);
+
+    if (before) {
+      frag.appendChild(document.createTextNode(before));
+    }
+
+    if (rangeStart !== rangeEnd) {
+      const selectionSpan = document.createElement("span");
+      selectionSpan.className = "diff-apply-editor-mirror-selection";
+      selectionSpan.textContent = value.slice(rangeStart, rangeEnd);
+      frag.appendChild(selectionSpan);
+    } else {
+      const caretSpan = document.createElement("span");
+      caretSpan.className = "diff-apply-editor-mirror-caret";
+      caretSpan.textContent = "\u200b";
+      frag.appendChild(caretSpan);
+    }
+
+    if (after) {
+      frag.appendChild(document.createTextNode(after));
+    }
+
+    contentEl.appendChild(frag);
   }
 
   private updatePanelContents(): void {
@@ -681,6 +851,8 @@ export class HybridDiffModal extends Modal {
 
     const inputEvent = new Event("input", { bubbles: true });
     textarea.dispatchEvent(inputEvent);
+
+    this.syncFinalEditorMirror();
   }
 
   private flashCopiedRange(
@@ -798,6 +970,24 @@ export class HybridDiffModal extends Modal {
   }
 
   onClose(): void {
+    if (this.boundSyncFinalEditorMirror && this.finalEditor) {
+      const sync = this.boundSyncFinalEditorMirror;
+      this.finalEditor.removeEventListener("input", sync);
+      this.finalEditor.removeEventListener("select", sync);
+      this.finalEditor.removeEventListener("keyup", sync);
+      this.finalEditor.removeEventListener("mouseup", sync);
+      this.finalEditor.removeEventListener("scroll", sync);
+      this.boundSyncFinalEditorMirror = null;
+    }
+    if (this.boundSyncFinalEditorMirrorFocusIn) {
+      this.modalEl.removeEventListener("focusin", this.boundSyncFinalEditorMirrorFocusIn, true);
+      this.boundSyncFinalEditorMirrorFocusIn = null;
+    }
+    if (this.boundSyncFinalEditorMirrorFocusOut) {
+      this.modalEl.removeEventListener("focusout", this.boundSyncFinalEditorMirrorFocusOut, true);
+      this.boundSyncFinalEditorMirrorFocusOut = null;
+    }
+
     if (this.boundHandleKeyDown) {
       document.removeEventListener("keydown", this.boundHandleKeyDown, { capture: true });
       this.boundHandleKeyDown = null;
@@ -905,6 +1095,8 @@ export class HybridDiffModal extends Modal {
     if (this.finalEditor) {
       this.finalEditor.style.fontSize = `${newSize}px`;
     }
+    this.syncFinalEditorMirrorStyles();
+    this.syncFinalEditorMirror();
 
     if (this.diffContainer) {
       this.diffContainer.style.fontSize = `${newSize}px`;
