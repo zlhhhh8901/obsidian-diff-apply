@@ -68,6 +68,10 @@ export class HybridDiffModal extends Modal {
   private isComposing = false;
   private preCompositionText = "";
 
+  // Insert flash state (so we can keep the brief highlight but avoid accidental replacement)
+  private finalEditorFlashRange: { start: number; end: number } | null = null;
+  private boundFinalEditorBeforeInput: ((event: InputEvent) => void) | null = null;
+
   constructor(app: App, opts: HybridDiffOptions) {
     super(app);
     this.originalText = opts.originalText;
@@ -246,6 +250,9 @@ export class HybridDiffModal extends Modal {
     this.finalEditor.addEventListener("mouseup", sync);
     this.finalEditor.addEventListener("scroll", sync);
 
+    this.boundFinalEditorBeforeInput = () => this.cancelFinalEditorFlashSelection();
+    this.finalEditor.addEventListener("beforeinput", this.boundFinalEditorBeforeInput, true);
+
     // Focus moves between the three panes; keep mirror visibility in sync.
     this.boundSyncFinalEditorMirrorFocusIn = () => sync();
     this.boundSyncFinalEditorMirrorFocusOut = () => window.setTimeout(sync, 0);
@@ -257,6 +264,24 @@ export class HybridDiffModal extends Modal {
     });
 
     this.syncFinalEditorMirror();
+  }
+
+  private cancelFinalEditorFlashSelection(): void {
+    if (!this.finalEditorFlashRange || !this.finalEditor) {
+      return;
+    }
+
+    const { start, end } = this.finalEditorFlashRange;
+    if (this.finalEditor.selectionStart === start && this.finalEditor.selectionEnd === end) {
+      this.finalEditor.setSelectionRange(end, end);
+    }
+
+    this.finalEditorFlashRange = null;
+
+    if (this.copyFlashTimer) {
+      clearTimeout(this.copyFlashTimer);
+      this.copyFlashTimer = null;
+    }
   }
 
   private syncFinalEditorMirrorStyles(): void {
@@ -832,7 +857,6 @@ export class HybridDiffModal extends Modal {
       return;
     }
 
-    const previousActive = document.activeElement;
     const savedScrollTop = textarea.scrollTop;
 
     const start = textarea.selectionStart;
@@ -845,7 +869,7 @@ export class HybridDiffModal extends Modal {
     const newValue = before + text + after;
     textarea.value = newValue;
     textarea.focus();
-    this.flashCopiedRange(textarea, insertStart, insertEnd, previousActive);
+    this.flashCopiedRange(textarea, insertStart, insertEnd);
 
     textarea.scrollTop = savedScrollTop;
 
@@ -858,21 +882,26 @@ export class HybridDiffModal extends Modal {
   private flashCopiedRange(
     textarea: HTMLTextAreaElement,
     start: number,
-    end: number,
-    previousActive: Element | null
+    end: number
   ): void {
     if (start === end) {
       return;
     }
-    const restoreTarget = previousActive instanceof HTMLElement ? previousActive : null;
+
+    if (textarea === this.finalEditor) {
+      this.finalEditorFlashRange = { start, end };
+    }
+
     textarea.setSelectionRange(start, end);
     if (this.copyFlashTimer) {
       clearTimeout(this.copyFlashTimer);
     }
     this.copyFlashTimer = setTimeout(() => {
-      textarea.setSelectionRange(end, end);
-      if (restoreTarget && restoreTarget !== textarea && this.modalEl.contains(restoreTarget)) {
-        restoreTarget.focus();
+      if (textarea.selectionStart === start && textarea.selectionEnd === end) {
+        textarea.setSelectionRange(end, end);
+      }
+      if (textarea === this.finalEditor) {
+        this.finalEditorFlashRange = null;
       }
     }, 600);
   }
@@ -978,6 +1007,10 @@ export class HybridDiffModal extends Modal {
       this.finalEditor.removeEventListener("mouseup", sync);
       this.finalEditor.removeEventListener("scroll", sync);
       this.boundSyncFinalEditorMirror = null;
+    }
+    if (this.boundFinalEditorBeforeInput && this.finalEditor) {
+      this.finalEditor.removeEventListener("beforeinput", this.boundFinalEditorBeforeInput, true);
+      this.boundFinalEditorBeforeInput = null;
     }
     if (this.boundSyncFinalEditorMirrorFocusIn) {
       this.modalEl.removeEventListener("focusin", this.boundSyncFinalEditorMirrorFocusIn, true);
