@@ -3,6 +3,10 @@ import { diffChars } from "diff";
 import type DiffApplyPlugin from "../main";
 import type { DiffViewPosition } from "../types";
 import {
+  getDesiredLeadingNewlineCountFromSource,
+  getSmartLeadingNewlinesForTarget,
+} from "../utils/smartInsert";
+import {
   computeLineDiff as computeLineDiffUtil,
   computeModifiedLineDiff as computeModifiedLineDiffUtil,
 } from "../utils/lineDiff";
@@ -37,7 +41,7 @@ export class HybridDiffModal extends Modal {
   private diffContainer: HTMLDivElement | null = null;
   private isDiffDirty = false;
 
-  private copyFlashTimer: ReturnType<typeof window.setTimeout> | null = null;
+  private copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
   private leftPanel: HTMLDivElement | null = null;
   private middlePanel: HTMLDivElement | null = null;
   private rightPanel: HTMLDivElement | null = null;
@@ -364,7 +368,16 @@ export class HybridDiffModal extends Modal {
         if (!this.finalEditor) {
           return;
         }
-        const textToCopy = lineContent;
+        const desiredLeadingNewlines =
+          this.plugin.settings.smartDblClickInsertNewlines
+            ? getDesiredLeadingNewlineCountFromSource(editor.value, currentLineStart)
+            : 0;
+        const prefix = getSmartLeadingNewlinesForTarget(
+          this.finalEditor.value,
+          this.finalEditor.selectionStart,
+          desiredLeadingNewlines
+        );
+        const textToCopy = prefix + lineContent;
         this.insertAtCursor(this.finalEditor, textToCopy);
       }
 
@@ -684,7 +697,7 @@ export class HybridDiffModal extends Modal {
     if (this.copyFlashTimer) {
       clearTimeout(this.copyFlashTimer);
     }
-    this.copyFlashTimer = window.setTimeout(() => {
+    this.copyFlashTimer = setTimeout(() => {
       textarea.setSelectionRange(end, end);
       if (restoreTarget && restoreTarget !== textarea && this.modalEl.contains(restoreTarget)) {
         restoreTarget.focus();

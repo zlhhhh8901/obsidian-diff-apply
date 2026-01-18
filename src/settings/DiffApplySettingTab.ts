@@ -47,6 +47,20 @@ export class DiffApplySettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName("双击行复制：智能补换行")
+      .setDesc(
+        "Read Only 下双击复制行到 Editor 时：如果源文本上一行为空（或仅空白）则在插入内容前补到至少 2 个换行；否则补到至少 1 个。仅在 Editor 非空、且光标不在行内时生效。"
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.smartDblClickInsertNewlines)
+          .onChange(async (value) => {
+            this.plugin.settings.smartDblClickInsertNewlines = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     containerEl.createEl("h3", { text: "快捷键说明" });
     const shortcutList = containerEl.createEl("ul");
     shortcutList.createEl("li", { text: "Cmd/Ctrl + , : 差异视图位置左移" });
