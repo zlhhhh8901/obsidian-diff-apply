@@ -83,10 +83,6 @@ export class HybridDiffModal extends Modal {
   }
 
   onOpen(): void {
-    console.log("HybridDiffModal opening...");
-    console.log("Original text:", this.originalText);
-    console.log("Modified text:", this.modifiedText);
-
     this.titleEl.setText("Diff Apply");
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.style.width = "95vw";
@@ -115,8 +111,6 @@ export class HybridDiffModal extends Modal {
     editorsContainer.style.flex = "1";
     editorsContainer.style.gap = "10px";
     editorsContainer.style.minHeight = "0";
-
-    console.log("Editors container created:", editorsContainer);
 
     this.createPanels(editorsContainer);
     this.addHybridActions(container);
@@ -512,8 +506,6 @@ export class HybridDiffModal extends Modal {
     text: string,
     isOriginal = false
   ): HTMLTextAreaElement {
-    console.log("Creating readonly editor, isOriginal:", isOriginal, "text length:", text.length);
-
     const editor = container.createEl("textarea");
     editor.value = text;
     editor.style.width = "100%";
@@ -583,10 +575,8 @@ export class HybridDiffModal extends Modal {
 
     if (isOriginal) {
       this.originalEditor = editor;
-      console.log("Original editor saved:", this.originalEditor);
     } else {
       this.modifiedEditor = editor;
-      console.log("Modified editor saved:", this.modifiedEditor);
     }
 
     return editor;
@@ -853,7 +843,6 @@ export class HybridDiffModal extends Modal {
 
   private insertAtCursor(textarea: HTMLTextAreaElement, text: string): void {
     if (textarea.tagName !== "TEXTAREA") {
-      console.error("insertAtCursor 只能用于textarea元素");
       return;
     }
 
