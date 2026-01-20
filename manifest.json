@@ -1,11 +1,10 @@
 {
-  "id": "obsidian-diff-apply",
+  "id": "diff-apply",
   "name": "Diff Apply",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
   "description": "Compare and merge selected text with clipboard content in a floating window.",
   "author": "Lihua Zheng",
   "authorUrl": "https://github.com/zlhhhh8901",
-  "isDesktopOnly": true,
-  "main": "main.js"
+  "isDesktopOnly": true
 }
