@@ -3,9 +3,9 @@
   "name": "Diff Apply",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "在浮动窗口中对选中文本与剪贴板文本进行差异对比与合并。",
-  "author": "obsidian-user",
-  "authorUrl": "https://example.com",
+  "description": "Compare and merge selected text with clipboard content in a floating window.",
+  "author": "zhenglihua",
+  "authorUrl": "https://github.com/zlhhhh8901",
   "isDesktopOnly": false,
   "main": "main.js"
 }
