@@ -1,10 +1,16 @@
 import { Editor, Notice, Plugin } from "obsidian";
+import type { I18nKey } from "./i18n";
+import { t as tI18n } from "./i18n";
 import { DiffApplySettingTab } from "./settings/DiffApplySettingTab";
 import { HybridDiffModal } from "./ui/HybridDiffModal";
 import { DEFAULT_SETTINGS, DiffApplySettings } from "./types";
 
 export default class DiffApplyPlugin extends Plugin {
   settings: DiffApplySettings = DEFAULT_SETTINGS;
+
+  t(key: I18nKey): string {
+    return tI18n(key, this.settings.language);
+  }
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -13,7 +19,7 @@ export default class DiffApplyPlugin extends Plugin {
 
     this.addCommand({
       id: "diff-apply-hybrid",
-      name: "混合编辑所选文本",
+      name: this.t("command.hybrid.name"),
       editorCallback: (editor) => this.openHybridDiffForSelection(editor),
     });
 
@@ -23,7 +29,7 @@ export default class DiffApplyPlugin extends Plugin {
         if (selection && selection.length > 0) {
           menu.addItem((item) =>
             item
-              .setTitle("混合编辑（Hybrid Diff）")
+              .setTitle(this.t("menu.hybrid.title"))
               .setIcon("edit")
               .onClick(() => this.openHybridDiffForSelection(editor))
           );
@@ -45,7 +51,7 @@ export default class DiffApplyPlugin extends Plugin {
   private async openHybridDiffForSelection(editor: Editor): Promise<void> {
     const selection = editor.getSelection();
     if (!selection || selection.length === 0) {
-      new Notice("请先在笔记中选中要对比的原文片段。");
+      new Notice(this.t("notice.selectOriginalSegment"));
       return;
     }
 
@@ -53,7 +59,7 @@ export default class DiffApplyPlugin extends Plugin {
     try {
       clipboardContent = await navigator.clipboard.readText();
     } catch (error) {
-      console.warn("无法读取剪贴板内容，可能是权限问题", error);
+      console.warn(this.t("notice.clipboardReadFailed"), error);
     }
 
     const from = editor.getCursor("from");

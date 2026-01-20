@@ -13,11 +13,27 @@ export class DiffApplySettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Diff Apply 插件设置" });
+    containerEl.createEl("h2", { text: this.plugin.t("settings.title") });
 
     new Setting(containerEl)
-      .setName("字体大小")
-      .setDesc("设置编辑器中的字体大小（像素）")
+      .setName(this.plugin.t("settings.language.name"))
+      .setDesc(this.plugin.t("settings.language.desc"))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("auto", this.plugin.t("settings.language.option.auto"))
+          .addOption("en", this.plugin.t("settings.language.option.en"))
+          .addOption("zh", this.plugin.t("settings.language.option.zh"))
+          .setValue(this.plugin.settings.language)
+          .onChange(async (value) => {
+            this.plugin.settings.language = value as "auto" | "en" | "zh";
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.fontSize.name"))
+      .setDesc(this.plugin.t("settings.fontSize.desc"))
       .addSlider((slider) =>
         slider
           .setLimits(10, 24, 1)
@@ -30,13 +46,13 @@ export class DiffApplySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("默认差异视图位置")
-      .setDesc("设置打开差异视图时的默认显示位置")
+      .setName(this.plugin.t("settings.defaultDiffPosition.name"))
+      .setDesc(this.plugin.t("settings.defaultDiffPosition.desc"))
       .addDropdown((dropdown) =>
         dropdown
-          .addOption("left", "左侧")
-          .addOption("center", "中间")
-          .addOption("right", "右侧")
+          .addOption("left", this.plugin.t("settings.defaultDiffPosition.option.left"))
+          .addOption("center", this.plugin.t("settings.defaultDiffPosition.option.center"))
+          .addOption("right", this.plugin.t("settings.defaultDiffPosition.option.right"))
           .setValue(this.plugin.settings.defaultDiffPosition)
           .onChange(async (value) => {
             this.plugin.settings.defaultDiffPosition = value as
@@ -48,10 +64,8 @@ export class DiffApplySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("双击行复制：智能补换行")
-      .setDesc(
-        "Read Only 下双击复制行到 Editor 时：如果源文本上一行为空（或仅空白）则在插入内容前补到至少 2 个换行；否则补到至少 1 个。仅在 Editor 非空、且光标不在行内时生效。"
-      )
+      .setName(this.plugin.t("settings.smartDblClickInsertNewlines.name"))
+      .setDesc(this.plugin.t("settings.smartDblClickInsertNewlines.desc"))
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.smartDblClickInsertNewlines)
@@ -61,13 +75,13 @@ export class DiffApplySettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "快捷键说明" });
+    containerEl.createEl("h3", { text: this.plugin.t("settings.shortcuts.title") });
     const shortcutList = containerEl.createEl("ul");
-    shortcutList.createEl("li", { text: "Cmd/Ctrl + , : 差异视图位置左移" });
-    shortcutList.createEl("li", { text: "Cmd/Ctrl + . : 差异视图位置右移" });
-    shortcutList.createEl("li", { text: "Cmd/Ctrl + / : 切换差异视图显示/隐藏" });
-    shortcutList.createEl("li", { text: "Enter : 复制选中文本到编辑器" });
-    shortcutList.createEl("li", { text: "双击只读栏任意非空行：复制该行到编辑器" });
-    shortcutList.createEl("li", { text: "Cmd/Ctrl + Z : 撤销编辑" });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.moveLeft") });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.moveRight") });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.toggleDiff") });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.enter") });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.dblClick") });
+    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.undo") });
   }
 }

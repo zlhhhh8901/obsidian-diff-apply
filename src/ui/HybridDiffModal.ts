@@ -97,9 +97,7 @@ export class HybridDiffModal extends Modal {
     container.style.gap = "10px";
 
     const hint = container.createDiv({ cls: "hybrid-hint" });
-    hint.setText(
-      "Left: original, right: modified. Press Enter to copy selection to middle editor. Use Cmd+, / Cmd+. to move diff view, Cmd+/ to toggle visibility. Cmd+Z to undo."
-    );
+    hint.setText(this.plugin.t("modal.hint"));
     hint.style.padding = "8px";
     hint.style.background = "#f0f0f0";
     hint.style.borderRadius = "4px";
@@ -135,7 +133,7 @@ export class HybridDiffModal extends Modal {
     this.leftPanel.style.minHeight = "0";
 
     const leftHeader = this.leftPanel.createDiv({ cls: "panel-header" });
-    leftHeader.setText("Original");
+    leftHeader.setText(this.plugin.t("modal.header.original"));
     leftHeader.style.padding = "8px";
     leftHeader.style.background = "#f5f5f5";
     leftHeader.style.borderBottom = "1px solid #ccc";
@@ -161,7 +159,7 @@ export class HybridDiffModal extends Modal {
     this.middlePanel.style.minHeight = "0";
 
     const middleHeader = this.middlePanel.createDiv({ cls: "panel-header" });
-    middleHeader.setText("Editor");
+    middleHeader.setText(this.plugin.t("modal.header.editor"));
     middleHeader.style.padding = "8px";
     middleHeader.style.background = "#4CAF50";
     middleHeader.style.color = "white";
@@ -189,7 +187,7 @@ export class HybridDiffModal extends Modal {
     this.rightPanel.style.minHeight = "0";
 
     const rightHeader = this.rightPanel.createDiv({ cls: "panel-header" });
-    rightHeader.setText("Modified");
+    rightHeader.setText(this.plugin.t("modal.header.modified"));
     rightHeader.style.padding = "8px";
     rightHeader.style.background = "#f5f5f5";
     rightHeader.style.borderBottom = "1px solid #ccc";
@@ -672,7 +670,7 @@ export class HybridDiffModal extends Modal {
     actionsContainer.style.flexWrap = "wrap";
 
     this.toggleEditModeBtn = actionsContainer.createEl("button", {
-      text: "Edit Mode",
+      text: this.plugin.t("modal.toggle.editMode"),
     });
     this.toggleEditModeBtn.style.padding = "8px 16px";
     this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
@@ -682,7 +680,7 @@ export class HybridDiffModal extends Modal {
     this.toggleEditModeBtn.style.cursor = "pointer";
 
     const clearBtn = actionsContainer.createEl("button", {
-      text: "Clear",
+      text: this.plugin.t("modal.action.clear"),
     });
     clearBtn.style.padding = "8px 16px";
     clearBtn.style.backgroundColor = "#f44336";
@@ -692,7 +690,7 @@ export class HybridDiffModal extends Modal {
     clearBtn.style.cursor = "pointer";
 
     const applyBtn = actionsContainer.createEl("button", {
-      text: "Apply",
+      text: this.plugin.t("modal.action.apply"),
       cls: "mod-cta",
     });
     applyBtn.style.padding = "8px 16px";
@@ -703,7 +701,7 @@ export class HybridDiffModal extends Modal {
     applyBtn.style.cursor = "pointer";
 
     const cancelBtn = actionsContainer.createEl("button", {
-      text: "Cancel",
+      text: this.plugin.t("modal.action.cancel"),
     });
     cancelBtn.style.padding = "8px 16px";
     cancelBtn.style.backgroundColor = "#666";
@@ -718,7 +716,9 @@ export class HybridDiffModal extends Modal {
     fontControlsContainer.style.gap = "8px";
     fontControlsContainer.style.marginLeft = "20px";
 
-    const fontLabel = fontControlsContainer.createEl("span", { text: "size:" });
+    const fontLabel = fontControlsContainer.createEl("span", {
+      text: this.plugin.t("modal.fontSize.label"),
+    });
     fontLabel.style.fontSize = "14px";
     fontLabel.style.color = "#ccc";
 
@@ -801,7 +801,7 @@ export class HybridDiffModal extends Modal {
     if (selectedText) {
       this.insertAtCursor(this.finalEditor, selectedText);
     } else {
-      new Notice("Please check what you want to copy in the original text");
+      new Notice(this.plugin.t("modal.notice.selectTextInOriginal"));
     }
   }
 
@@ -813,7 +813,7 @@ export class HybridDiffModal extends Modal {
     if (selectedText) {
       this.insertAtCursor(this.finalEditor, selectedText);
     } else {
-      new Notice("Please check what you want to copy in the modified text");
+      new Notice(this.plugin.t("modal.notice.selectTextInModified"));
     }
   }
 
@@ -824,9 +824,9 @@ export class HybridDiffModal extends Modal {
     const allModifiedText = this.modifiedEditor.value;
     if (allModifiedText) {
       this.finalEditor.value = allModifiedText;
-      new Notice("Have copied.");
+      new Notice(this.plugin.t("modal.notice.copied"));
     } else {
-      new Notice("Modified version is empty.");
+      new Notice(this.plugin.t("modal.notice.modifiedEmpty"));
     }
   }
 
@@ -946,7 +946,7 @@ export class HybridDiffModal extends Modal {
             );
           }
         } else {
-          new Notice("请先在原文中选择要复制的文本");
+          new Notice(this.plugin.t("modal.notice.selectTextInOriginal"));
         }
         return;
       }
@@ -964,7 +964,7 @@ export class HybridDiffModal extends Modal {
             );
           }
         } else {
-          new Notice("请先在修改版中选择要复制的文本");
+          new Notice(this.plugin.t("modal.notice.selectTextInModified"));
         }
         return;
       }
@@ -1138,10 +1138,10 @@ export class HybridDiffModal extends Modal {
 
     if (this.toggleEditModeBtn) {
       if (this.isEditModeEnabled) {
-        this.toggleEditModeBtn.textContent = "Read Only";
+        this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.readOnly");
         this.toggleEditModeBtn.style.backgroundColor = "#FF9800";
       } else {
-        this.toggleEditModeBtn.textContent = "Edit Mode";
+        this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.editMode");
         this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
       }
     }
@@ -1153,7 +1153,11 @@ export class HybridDiffModal extends Modal {
       this.modifiedEditor.readOnly = !this.isEditModeEnabled;
     }
 
-    new Notice(this.isEditModeEnabled ? "Edit Mode" : "Read Only");
+    new Notice(
+      this.isEditModeEnabled
+        ? this.plugin.t("modal.notice.editMode")
+        : this.plugin.t("modal.notice.readOnly")
+    );
 
     this.updateDiffView();
   }
