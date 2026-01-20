@@ -1,7 +1,7 @@
 {
   "name": "obsidian-diff-apply",
   "version": "0.1.0",
-  "description": "Obsidian plugin for hybrid diff + apply workflows.",
+  "description": "Compare and merge selected text with clipboard content in a floating window.",
   "main": "main.js",
   "scripts": {
     "build": "node esbuild.config.mjs --production && node scripts/copy-css.mjs",
@@ -16,7 +16,7 @@
     "diff",
     "merge"
   ],
-  "author": "obsidian-user",
+  "author": "Lihua Zheng",
   "license": "MIT",
   "dependencies": {
     "diff": "^5.2.0"
