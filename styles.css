@@ -56,15 +56,6 @@
   gap: var(--hybrid-gap);
 }
 
-.hybrid-hint {
-  padding: 8px 10px;
-  border: 1px solid var(--hybrid-border);
-  border-radius: var(--hybrid-radius);
-  background: var(--hybrid-bg-secondary);
-  color: var(--hybrid-text-muted);
-  font-size: calc(var(--hybrid-font-size) - 1px);
-}
-
 .hybrid-editors-container {
   display: flex;
   flex: 1;

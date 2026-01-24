@@ -92,9 +92,6 @@ export class HybridDiffModal extends Modal {
 
     const container = this.contentEl.createDiv({ cls: "hybrid-diff-container" });
 
-    const hint = container.createDiv({ cls: "hybrid-hint" });
-    hint.setText(this.plugin.t("modal.hint"));
-
     const editorsContainer = container.createDiv({ cls: "hybrid-editors-container" });
 
     this.createPanels(editorsContainer);

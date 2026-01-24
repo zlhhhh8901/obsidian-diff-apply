@@ -8,8 +8,6 @@ const en = {
   "notice.selectOriginalSegment": "Select the original text in the note first.",
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
 
-  "modal.hint":
-    "Left: original, right: modified. Press Enter to copy selection to the middle editor. Hover over left/right panels to see detailed diff. Cmd+Z to undo.",
   "modal.header.original": "Original",
   "modal.header.editor": "Editor",
   "modal.header.modified": "Modified",
@@ -69,8 +67,6 @@ const zh: Record<keyof typeof en, string> = {
   "notice.selectOriginalSegment": "请先在笔记中选中要对比的原文片段。",
   "notice.clipboardReadFailed": "无法读取剪贴板内容，可能是权限问题。",
 
-  "modal.hint":
-    "左：原文，右：修改版。按 Enter 将选中文本复制到中间编辑器。鼠标悬停在左/右面板上可查看详细差异。Cmd+Z 撤销。",
   "modal.header.original": "原文",
   "modal.header.editor": "编辑器",
   "modal.header.modified": "修改版",
