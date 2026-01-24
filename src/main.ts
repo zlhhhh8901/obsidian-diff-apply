@@ -1,22 +1,16 @@
 import { Editor, Notice, Plugin } from "obsidian";
 import type { I18nKey } from "./i18n";
 import { t as tI18n } from "./i18n";
-import { DiffApplySettingTab } from "./settings/DiffApplySettingTab";
 import { HybridDiffModal } from "./ui/HybridDiffModal";
-import { DEFAULT_SETTINGS, DiffApplySettings } from "./types";
+
+const DEFAULT_FONT_SIZE = 14;
 
 export default class DiffApplyPlugin extends Plugin {
-  settings: DiffApplySettings = DEFAULT_SETTINGS;
-
   t(key: I18nKey): string {
-    return tI18n(key, this.settings.language);
+    return tI18n(key);
   }
 
   async onload(): Promise<void> {
-    await this.loadSettings();
-
-    this.addSettingTab(new DiffApplySettingTab(this.app, this));
-
     this.addCommand({
       id: "diff-apply-hybrid",
       name: this.t("command.hybrid.name"),
@@ -39,14 +33,6 @@ export default class DiffApplyPlugin extends Plugin {
   }
 
   onunload(): void {}
-
-  async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-  }
-
-  async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
-  }
 
   private async openHybridDiffForSelection(editor: Editor): Promise<void> {
     const selection = editor.getSelection();
@@ -71,7 +57,7 @@ export default class DiffApplyPlugin extends Plugin {
       onApply: (finalText) => {
         editor.replaceRange(finalText, from, to);
       },
-      fontSize: this.settings.fontSize,
+      fontSize: DEFAULT_FONT_SIZE,
       plugin: this,
     });
 

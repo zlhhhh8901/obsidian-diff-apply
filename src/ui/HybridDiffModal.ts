@@ -10,6 +10,10 @@ import {
   computeModifiedLineDiff as computeModifiedLineDiffUtil,
 } from "../utils/lineDiff";
 
+const DEFAULT_DIFF_STYLE = "background";
+const COMPLETE_DIFF_STYLE = "background";
+const SMART_DBLCLICK_INSERT_NEWLINES = true;
+
 export interface HybridDiffOptions {
   originalText: string;
   modifiedText: string;
@@ -100,10 +104,8 @@ export class HybridDiffModal extends Modal {
   }
 
   private applyDiffThemeSettings(): void {
-    const { defaultDiffStyle, completeDiffStyle } = this.plugin.settings;
-
-    this.modalEl.dataset.defaultStyle = defaultDiffStyle;
-    this.modalEl.dataset.completeStyle = completeDiffStyle;
+    this.modalEl.dataset.defaultStyle = DEFAULT_DIFF_STYLE;
+    this.modalEl.dataset.completeStyle = COMPLETE_DIFF_STYLE;
   }
 
   private computeLineDiff(originalLines: string[], modifiedLines: string[]) {
@@ -407,7 +409,7 @@ export class HybridDiffModal extends Modal {
           return;
         }
         const desiredLeadingNewlines =
-          this.plugin.settings.smartDblClickInsertNewlines
+          SMART_DBLCLICK_INSERT_NEWLINES
             ? getDesiredLeadingNewlineCountFromSource(editor.value, currentLineStart)
             : 0;
         const prefix = getSmartLeadingNewlinesForTarget(
@@ -941,10 +943,6 @@ export class HybridDiffModal extends Modal {
         this.fontDisplayEl.textContent = `${newSize}px`;
       }
       this.updateFontSize(newSize);
-      if (this.plugin) {
-        this.plugin.settings.fontSize = newSize;
-        void this.plugin.saveSettings();
-      }
     });
 
     increaseBtn.addEventListener("click", () => {
@@ -953,10 +951,6 @@ export class HybridDiffModal extends Modal {
         this.fontDisplayEl.textContent = `${newSize}px`;
       }
       this.updateFontSize(newSize);
-      if (this.plugin) {
-        this.plugin.settings.fontSize = newSize;
-        void this.plugin.saveSettings();
-      }
     });
   }
 
