@@ -77,56 +77,6 @@ export class DiffApplySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName(this.plugin.t("settings.diffColor.added.name"))
-      .addColorPicker((picker) =>
-        picker
-          .setValue(this.plugin.settings.diffAddedColor)
-          .onChange(async (value) => {
-            this.plugin.settings.diffAddedColor = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName(this.plugin.t("settings.diffColor.deleted.name"))
-      .addColorPicker((picker) =>
-        picker
-          .setValue(this.plugin.settings.diffDeletedColor)
-          .onChange(async (value) => {
-            this.plugin.settings.diffDeletedColor = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName(this.plugin.t("settings.diffOpacity.default.name"))
-      .setDesc(this.plugin.t("settings.diffOpacity.default.desc"))
-      .addSlider((slider) =>
-        slider
-          .setLimits(0, 40, 1)
-          .setValue(this.plugin.settings.diffDefaultOpacity)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.diffDefaultOpacity = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName(this.plugin.t("settings.diffOpacity.complete.name"))
-      .setDesc(this.plugin.t("settings.diffOpacity.complete.desc"))
-      .addSlider((slider) =>
-        slider
-          .setLimits(0, 40, 1)
-          .setValue(this.plugin.settings.diffCompleteOpacity)
-          .setDynamicTooltip()
-          .onChange(async (value) => {
-            this.plugin.settings.diffCompleteOpacity = value;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName(this.plugin.t("settings.smartDblClickInsertNewlines.name"))
       .setDesc(this.plugin.t("settings.smartDblClickInsertNewlines.desc"))
       .addToggle((toggle) =>

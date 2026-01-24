@@ -26,14 +26,15 @@
   max-width: 1400px;
   height: 85vh;
   overflow: hidden;
+  background: #fdfdfd;
 
   --hybrid-font-size: 14px;
   --hybrid-gap: 10px;
   --hybrid-editor-padding: 8px;
   --hybrid-radius: var(--radius-m, 6px);
-  --hybrid-border: var(--background-modifier-border);
-  --hybrid-bg: var(--background-primary);
-  --hybrid-bg-secondary: var(--background-secondary);
+  --hybrid-border: #eee;
+  --hybrid-bg: #fff;
+  --hybrid-bg-secondary: #fff;
   --hybrid-text-muted: var(--text-muted);
   --hybrid-accent: var(--interactive-accent);
   --hybrid-scrollbar-track: var(--scrollbar-bg, transparent);
@@ -41,12 +42,19 @@
   --hybrid-scrollbar-thumb-hover: var(--scrollbar-active-thumb-bg, rgba(128, 128, 128, 0.8));
 
   /* Diff colors are scoped so users/themes can override them. */
-  --hybrid-diff-added: var(--color-green, #2e7d32);
-  --hybrid-diff-deleted: var(--color-red, #d32f2f);
-  --hybrid-diff-added-bg: rgba(46, 125, 50, 0.18);
-  --hybrid-diff-deleted-bg: rgba(211, 47, 47, 0.18);
-  --hybrid-diff-added-bg-strong: rgba(46, 125, 50, 0.28);
-  --hybrid-diff-deleted-bg-strong: rgba(211, 47, 47, 0.28);
+  --c-del-bg: rgba(225, 180, 170, 0.3);
+  --c-del-ink: #c05540;
+  --c-add-bg: rgba(180, 200, 180, 0.35);
+  --c-add-ink: #3f6e63;
+  --c-del-bg-strong: rgba(225, 180, 170, 0.5);
+  --c-add-bg-strong: rgba(180, 200, 180, 0.5);
+
+  --hybrid-diff-added: var(--c-add-ink);
+  --hybrid-diff-deleted: var(--c-del-ink);
+  --hybrid-diff-added-bg: var(--c-add-bg);
+  --hybrid-diff-deleted-bg: var(--c-del-bg);
+  --hybrid-diff-added-bg-strong: var(--c-add-bg-strong);
+  --hybrid-diff-deleted-bg-strong: var(--c-del-bg-strong);
 }
 
 .hybrid-diff-container {
@@ -54,6 +62,7 @@
   flex-direction: column;
   height: 100%;
   gap: var(--hybrid-gap);
+  background: #fff;
 }
 
 .hybrid-editors-container {
@@ -80,18 +89,24 @@
   border-color: var(--hybrid-accent);
 }
 
-.hybrid-panel .panel-header {
-  padding: 8px 10px;
-  background: var(--hybrid-bg-secondary);
-  border-bottom: 1px solid var(--hybrid-border);
+.hybrid-diff-modal .panel-header,
+.hybrid-diff-modal .pane-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #aaa;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+  padding: 8px 10px 8px;
+  background: transparent;
   font-weight: 600;
   flex-shrink: 0;
   user-select: none;
 }
 
 .hybrid-panel.editable .panel-header {
-  background: var(--hybrid-accent);
-  color: var(--text-on-accent, #fff);
+  background: transparent;
+  color: #aaa;
 }
 
 .hybrid-panel .panel-content {

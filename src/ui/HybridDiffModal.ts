@@ -100,40 +100,10 @@ export class HybridDiffModal extends Modal {
   }
 
   private applyDiffThemeSettings(): void {
-    const {
-      defaultDiffStyle,
-      completeDiffStyle,
-      diffAddedColor,
-      diffDeletedColor,
-      diffDefaultOpacity,
-      diffCompleteOpacity,
-    } = this.plugin.settings;
+    const { defaultDiffStyle, completeDiffStyle } = this.plugin.settings;
 
     this.modalEl.dataset.defaultStyle = defaultDiffStyle;
     this.modalEl.dataset.completeStyle = completeDiffStyle;
-
-    this.modalEl.style.setProperty("--hybrid-diff-added", diffAddedColor);
-    this.modalEl.style.setProperty("--hybrid-diff-deleted", diffDeletedColor);
-
-    const defaultAlpha = this.normalizeOpacity(diffDefaultOpacity);
-    const completeAlpha = this.normalizeOpacity(diffCompleteOpacity);
-
-    this.modalEl.style.setProperty(
-      "--hybrid-diff-added-bg",
-      this.resolveRgba(diffAddedColor, defaultAlpha)
-    );
-    this.modalEl.style.setProperty(
-      "--hybrid-diff-deleted-bg",
-      this.resolveRgba(diffDeletedColor, defaultAlpha)
-    );
-    this.modalEl.style.setProperty(
-      "--hybrid-diff-added-bg-strong",
-      this.resolveRgba(diffAddedColor, completeAlpha)
-    );
-    this.modalEl.style.setProperty(
-      "--hybrid-diff-deleted-bg-strong",
-      this.resolveRgba(diffDeletedColor, completeAlpha)
-    );
   }
 
   private computeLineDiff(originalLines: string[], modifiedLines: string[]) {
@@ -882,40 +852,6 @@ export class HybridDiffModal extends Modal {
         this.renderCompleteDiff(this.leftDiffContent, currentOriginal, currentModified);
       }
     }
-  }
-
-  private normalizeOpacity(value: number): number {
-    const percent = Number.isFinite(value) ? value : 0;
-    return Math.min(1, Math.max(0, percent / 100));
-  }
-
-  private resolveRgba(color: string, alpha: number): string {
-    const rgb = this.hexToRgb(color);
-    if (!rgb) {
-      return color;
-    }
-    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-  }
-
-  private hexToRgb(color: string): { r: number; g: number; b: number } | null {
-    const hex = color.trim();
-    if (!hex.startsWith("#")) {
-      return null;
-    }
-    const value = hex.slice(1);
-    if (value.length === 3) {
-      const r = parseInt(value[0] + value[0], 16);
-      const g = parseInt(value[1] + value[1], 16);
-      const b = parseInt(value[2] + value[2], 16);
-      return { r, g, b };
-    }
-    if (value.length === 6) {
-      const r = parseInt(value.slice(0, 2), 16);
-      const g = parseInt(value.slice(2, 4), 16);
-      const b = parseInt(value.slice(4, 6), 16);
-      return { r, g, b };
-    }
-    return null;
   }
 
   private addToHistory(value: string): void {

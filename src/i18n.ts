@@ -43,12 +43,6 @@ const en = {
   "settings.diffStyle.option.background": "Background highlight",
   "settings.diffStyle.option.text": "Text color only",
   "settings.diffStyle.option.underline": "Underline only",
-  "settings.diffColor.added.name": "Added color",
-  "settings.diffColor.deleted.name": "Deleted color",
-  "settings.diffOpacity.default.name": "Default highlight opacity",
-  "settings.diffOpacity.default.desc": "Background opacity in default state (0–40%).",
-  "settings.diffOpacity.complete.name": "Complete highlight opacity",
-  "settings.diffOpacity.complete.desc": "Background opacity in complete view (0–40%).",
 
   "settings.smartDblClickInsertNewlines.name": "Double-click copy: smart newlines",
   "settings.smartDblClickInsertNewlines.desc":
@@ -102,12 +96,6 @@ const zh: Record<keyof typeof en, string> = {
   "settings.diffStyle.option.background": "背景高亮",
   "settings.diffStyle.option.text": "仅文字颜色",
   "settings.diffStyle.option.underline": "仅下划线",
-  "settings.diffColor.added.name": "新增颜色",
-  "settings.diffColor.deleted.name": "删除颜色",
-  "settings.diffOpacity.default.name": "默认高亮透明度",
-  "settings.diffOpacity.default.desc": "默认状态下背景透明度（0–40%）。",
-  "settings.diffOpacity.complete.name": "完整高亮透明度",
-  "settings.diffOpacity.complete.desc": "完整视图下背景透明度（0–40%）。",
 
   "settings.smartDblClickInsertNewlines.name": "双击行复制：智能补换行",
   "settings.smartDblClickInsertNewlines.desc":

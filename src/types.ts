@@ -7,10 +7,6 @@ export interface DiffApplySettings {
   language: DiffApplyLanguage;
   defaultDiffStyle: DiffDisplayStyle;
   completeDiffStyle: DiffDisplayStyle;
-  diffAddedColor: string;
-  diffDeletedColor: string;
-  diffDefaultOpacity: number;
-  diffCompleteOpacity: number;
 }
 
 export const DEFAULT_SETTINGS: DiffApplySettings = {
@@ -19,8 +15,4 @@ export const DEFAULT_SETTINGS: DiffApplySettings = {
   language: "auto",
   defaultDiffStyle: "background",
   completeDiffStyle: "background",
-  diffAddedColor: "#2e7d32",
-  diffDeletedColor: "#d32f2f",
-  diffDefaultOpacity: 18,
-  diffCompleteOpacity: 28,
 };
