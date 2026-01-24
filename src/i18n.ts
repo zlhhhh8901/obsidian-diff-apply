@@ -19,6 +19,8 @@ const en = {
   "modal.action.apply": "Apply",
   "modal.action.cancel": "Cancel",
   "modal.fontSize.label": "Size:",
+  "modal.fontSize.decreaseAriaLabel": "Decrease font size",
+  "modal.fontSize.increaseAriaLabel": "Increase font size",
   "modal.notice.readOnly": "Read Only",
   "modal.notice.editMode": "Edit Mode",
   "modal.notice.selectTextInOriginal": "Select text in Original to copy first.",
@@ -35,6 +37,20 @@ const en = {
 
   "settings.fontSize.name": "Font size",
   "settings.fontSize.desc": "Set the editor font size (px).",
+
+  "settings.diffStyle.default.name": "Default diff display",
+  "settings.diffStyle.default.desc": "How differences look when not hovering a panel.",
+  "settings.diffStyle.complete.name": "Complete diff display",
+  "settings.diffStyle.complete.desc": "How differences look in the full comparison view on hover.",
+  "settings.diffStyle.option.background": "Background highlight",
+  "settings.diffStyle.option.text": "Text color only",
+  "settings.diffStyle.option.underline": "Underline only",
+  "settings.diffColor.added.name": "Added color",
+  "settings.diffColor.deleted.name": "Deleted color",
+  "settings.diffOpacity.default.name": "Default highlight opacity",
+  "settings.diffOpacity.default.desc": "Background opacity in default state (0–40%).",
+  "settings.diffOpacity.complete.name": "Complete highlight opacity",
+  "settings.diffOpacity.complete.desc": "Background opacity in complete view (0–40%).",
 
   "settings.smartDblClickInsertNewlines.name": "Double-click copy: smart newlines",
   "settings.smartDblClickInsertNewlines.desc":
@@ -64,6 +80,8 @@ const zh: Record<keyof typeof en, string> = {
   "modal.action.apply": "应用",
   "modal.action.cancel": "取消",
   "modal.fontSize.label": "字号：",
+  "modal.fontSize.decreaseAriaLabel": "减小字号",
+  "modal.fontSize.increaseAriaLabel": "增大字号",
   "modal.notice.readOnly": "只读模式",
   "modal.notice.editMode": "编辑模式",
   "modal.notice.selectTextInOriginal": "请先在原文中选择要复制的文本",
@@ -80,6 +98,20 @@ const zh: Record<keyof typeof en, string> = {
 
   "settings.fontSize.name": "字体大小",
   "settings.fontSize.desc": "设置编辑器中的字体大小（像素）",
+
+  "settings.diffStyle.default.name": "默认差异显示",
+  "settings.diffStyle.default.desc": "未悬停时的差异显示方式。",
+  "settings.diffStyle.complete.name": "完整差异显示",
+  "settings.diffStyle.complete.desc": "悬停对比时完整差异的显示方式。",
+  "settings.diffStyle.option.background": "背景高亮",
+  "settings.diffStyle.option.text": "仅文字颜色",
+  "settings.diffStyle.option.underline": "仅下划线",
+  "settings.diffColor.added.name": "新增颜色",
+  "settings.diffColor.deleted.name": "删除颜色",
+  "settings.diffOpacity.default.name": "默认高亮透明度",
+  "settings.diffOpacity.default.desc": "默认状态下背景透明度（0–40%）。",
+  "settings.diffOpacity.complete.name": "完整高亮透明度",
+  "settings.diffOpacity.complete.desc": "完整视图下背景透明度（0–40%）。",
 
   "settings.smartDblClickInsertNewlines.name": "双击行复制：智能补换行",
   "settings.smartDblClickInsertNewlines.desc":

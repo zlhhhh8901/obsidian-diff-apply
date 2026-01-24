@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type DiffApplyPlugin from "../main";
+import type { DiffDisplayStyle } from "../types";
 
 export class DiffApplySettingTab extends PluginSettingTab {
   private plugin: DiffApplyPlugin;
@@ -41,6 +42,86 @@ export class DiffApplySettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (value) => {
             this.plugin.settings.fontSize = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffStyle.default.name"))
+      .setDesc(this.plugin.t("settings.diffStyle.default.desc"))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("background", this.plugin.t("settings.diffStyle.option.background"))
+          .addOption("text", this.plugin.t("settings.diffStyle.option.text"))
+          .addOption("underline", this.plugin.t("settings.diffStyle.option.underline"))
+          .setValue(this.plugin.settings.defaultDiffStyle)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultDiffStyle = value as DiffDisplayStyle;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffStyle.complete.name"))
+      .setDesc(this.plugin.t("settings.diffStyle.complete.desc"))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("background", this.plugin.t("settings.diffStyle.option.background"))
+          .addOption("text", this.plugin.t("settings.diffStyle.option.text"))
+          .addOption("underline", this.plugin.t("settings.diffStyle.option.underline"))
+          .setValue(this.plugin.settings.completeDiffStyle)
+          .onChange(async (value) => {
+            this.plugin.settings.completeDiffStyle = value as DiffDisplayStyle;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffColor.added.name"))
+      .addColorPicker((picker) =>
+        picker
+          .setValue(this.plugin.settings.diffAddedColor)
+          .onChange(async (value) => {
+            this.plugin.settings.diffAddedColor = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffColor.deleted.name"))
+      .addColorPicker((picker) =>
+        picker
+          .setValue(this.plugin.settings.diffDeletedColor)
+          .onChange(async (value) => {
+            this.plugin.settings.diffDeletedColor = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffOpacity.default.name"))
+      .setDesc(this.plugin.t("settings.diffOpacity.default.desc"))
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 40, 1)
+          .setValue(this.plugin.settings.diffDefaultOpacity)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.diffDefaultOpacity = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settings.diffOpacity.complete.name"))
+      .setDesc(this.plugin.t("settings.diffOpacity.complete.desc"))
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 40, 1)
+          .setValue(this.plugin.settings.diffCompleteOpacity)
+          .setDynamicTooltip()
+          .onChange(async (value) => {
+            this.plugin.settings.diffCompleteOpacity = value;
             await this.plugin.saveSettings();
           })
       );

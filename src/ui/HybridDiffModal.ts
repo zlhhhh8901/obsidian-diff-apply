@@ -87,34 +87,56 @@ export class HybridDiffModal extends Modal {
   onOpen(): void {
     this.titleEl.setText("Diff Apply");
     this.modalEl.addClass("hybrid-diff-modal");
-    this.modalEl.style.width = "95vw";
-    this.modalEl.style.maxWidth = "1400px";
-    this.modalEl.style.height = "85vh";
-    this.modalEl.style.overflow = "hidden";
+    this.modalEl.style.setProperty("--hybrid-font-size", `${this.fontSize}px`);
+    this.applyDiffThemeSettings();
 
     const container = this.contentEl.createDiv({ cls: "hybrid-diff-container" });
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.height = "100%";
-    container.style.gap = "10px";
 
     const hint = container.createDiv({ cls: "hybrid-hint" });
     hint.setText(this.plugin.t("modal.hint"));
-    hint.style.padding = "8px";
-    hint.style.background = "#f0f0f0";
-    hint.style.borderRadius = "4px";
-    hint.style.fontSize = `${this.fontSize - 1}px`;
-    hint.style.color = "#666";
 
     const editorsContainer = container.createDiv({ cls: "hybrid-editors-container" });
-    editorsContainer.style.display = "flex";
-    editorsContainer.style.flex = "1";
-    editorsContainer.style.gap = "10px";
-    editorsContainer.style.minHeight = "0";
 
     this.createPanels(editorsContainer);
     this.addHybridActions(container);
     this.addKeyboardShortcuts();
+  }
+
+  private applyDiffThemeSettings(): void {
+    const {
+      defaultDiffStyle,
+      completeDiffStyle,
+      diffAddedColor,
+      diffDeletedColor,
+      diffDefaultOpacity,
+      diffCompleteOpacity,
+    } = this.plugin.settings;
+
+    this.modalEl.dataset.defaultStyle = defaultDiffStyle;
+    this.modalEl.dataset.completeStyle = completeDiffStyle;
+
+    this.modalEl.style.setProperty("--hybrid-diff-added", diffAddedColor);
+    this.modalEl.style.setProperty("--hybrid-diff-deleted", diffDeletedColor);
+
+    const defaultAlpha = this.normalizeOpacity(diffDefaultOpacity);
+    const completeAlpha = this.normalizeOpacity(diffCompleteOpacity);
+
+    this.modalEl.style.setProperty(
+      "--hybrid-diff-added-bg",
+      this.resolveRgba(diffAddedColor, defaultAlpha)
+    );
+    this.modalEl.style.setProperty(
+      "--hybrid-diff-deleted-bg",
+      this.resolveRgba(diffDeletedColor, defaultAlpha)
+    );
+    this.modalEl.style.setProperty(
+      "--hybrid-diff-added-bg-strong",
+      this.resolveRgba(diffAddedColor, completeAlpha)
+    );
+    this.modalEl.style.setProperty(
+      "--hybrid-diff-deleted-bg-strong",
+      this.resolveRgba(diffDeletedColor, completeAlpha)
+    );
   }
 
   private computeLineDiff(originalLines: string[], modifiedLines: string[]) {
@@ -127,32 +149,12 @@ export class HybridDiffModal extends Modal {
 
   private createPanels(editorsContainer: HTMLElement): void {
     this.leftPanel = editorsContainer.createDiv({ cls: "hybrid-panel original" });
-    this.leftPanel.style.flex = "1";
-    this.leftPanel.style.display = "flex";
-    this.leftPanel.style.flexDirection = "column";
-    this.leftPanel.style.border = "1px solid #ccc";
-    this.leftPanel.style.borderRadius = "4px";
-    this.leftPanel.style.minHeight = "0";
 
     const leftHeader = this.leftPanel.createDiv({ cls: "panel-header" });
     leftHeader.setText(this.plugin.t("modal.header.original"));
-    leftHeader.style.padding = "8px";
-    leftHeader.style.background = "#f5f5f5";
-    leftHeader.style.borderBottom = "1px solid #ccc";
-    leftHeader.style.fontWeight = "bold";
-    leftHeader.style.flexShrink = "0";
 
     const leftContent = this.leftPanel.createDiv({ cls: "panel-content" });
-    leftContent.style.flex = "1";
-    leftContent.style.padding = "0";
-    leftContent.style.overflow = "hidden";
-    leftContent.style.minHeight = "0";
-    leftContent.style.position = "relative";
-    leftContent.style.backgroundColor = "#fafafa";
     const originalEditor = this.createReadOnlyEditor(leftContent, this.originalText, true);
-    originalEditor.style.height = "100%";
-    originalEditor.style.position = "relative";
-    originalEditor.style.zIndex = "1";
     originalEditor.addClass("diff-active");
     this.originalEditor = originalEditor;
 
@@ -169,60 +171,23 @@ export class HybridDiffModal extends Modal {
     });
 
     this.middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
-    this.middlePanel.style.flex = "1";
-    this.middlePanel.style.display = "flex";
-    this.middlePanel.style.flexDirection = "column";
-    this.middlePanel.style.border = "2px solid #4CAF50";
-    this.middlePanel.style.borderRadius = "4px";
-    this.middlePanel.style.minHeight = "0";
 
     const middleHeader = this.middlePanel.createDiv({ cls: "panel-header" });
     middleHeader.setText(this.plugin.t("modal.header.editor"));
-    middleHeader.style.padding = "8px";
-    middleHeader.style.background = "#4CAF50";
-    middleHeader.style.color = "white";
-    middleHeader.style.fontWeight = "bold";
-    middleHeader.style.flexShrink = "0";
 
     const middleContent = this.middlePanel.createDiv({ cls: "panel-content" });
-    middleContent.style.flex = "1";
-    middleContent.style.padding = "0";
-    middleContent.style.overflow = "hidden";
-    middleContent.style.minHeight = "0";
-    middleContent.style.position = "relative";
 
     const finalEditor = this.createEditableEditor(middleContent, "");
-    finalEditor.style.height = "100%";
     this.finalEditor = finalEditor;
     this.setupFinalEditorMirror(middleContent);
 
     this.rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel modified" });
-    this.rightPanel.style.flex = "1";
-    this.rightPanel.style.display = "flex";
-    this.rightPanel.style.flexDirection = "column";
-    this.rightPanel.style.border = "1px solid #ccc";
-    this.rightPanel.style.borderRadius = "4px";
-    this.rightPanel.style.minHeight = "0";
 
     const rightHeader = this.rightPanel.createDiv({ cls: "panel-header" });
     rightHeader.setText(this.plugin.t("modal.header.modified"));
-    rightHeader.style.padding = "8px";
-    rightHeader.style.background = "#f5f5f5";
-    rightHeader.style.borderBottom = "1px solid #ccc";
-    rightHeader.style.fontWeight = "bold";
-    rightHeader.style.flexShrink = "0";
 
     const rightContent = this.rightPanel.createDiv({ cls: "panel-content" });
-    rightContent.style.flex = "1";
-    rightContent.style.padding = "0";
-    rightContent.style.overflow = "hidden";
-    rightContent.style.minHeight = "0";
-    rightContent.style.position = "relative";
-    rightContent.style.backgroundColor = "#fafafa";
     const modifiedEditor = this.createReadOnlyEditor(rightContent, this.modifiedText, false);
-    modifiedEditor.style.height = "100%";
-    modifiedEditor.style.position = "relative";
-    modifiedEditor.style.zIndex = "1";
     modifiedEditor.addClass("diff-active");
     this.modifiedEditor = modifiedEditor;
 
@@ -436,25 +401,10 @@ export class HybridDiffModal extends Modal {
     isOriginal = false
   ): HTMLTextAreaElement {
     const editor = container.createEl("textarea");
+    editor.addClass("hybrid-editor");
+    editor.addClass("hybrid-editor--readonly");
+    editor.addClass(isOriginal ? "hybrid-editor--original" : "hybrid-editor--modified");
     editor.value = text;
-    editor.style.width = "100%";
-    editor.style.height = "100%";
-    editor.style.border = "none";
-    editor.style.outline = "none";
-    editor.style.resize = "none";
-    editor.style.padding = "8px";
-    editor.style.boxSizing = "border-box";
-    editor.style.fontFamily = "monospace";
-    editor.style.fontSize = `${this.fontSize}px`;
-    editor.style.lineHeight = "1.5";
-    editor.style.backgroundColor = "transparent";
-    editor.style.color = "transparent";
-    editor.style.caretColor = "black";
-    editor.style.overflow = "auto";
-    editor.style.whiteSpace = "pre-wrap";
-    editor.style.wordWrap = "break-word";
-    editor.style.userSelect = "text";
-    editor.style.cursor = "text";
     editor.readOnly = true;
 
     // Debounced input handler for real-time diff updates in edit mode
@@ -518,19 +468,9 @@ export class HybridDiffModal extends Modal {
 
   private createEditableEditor(container: HTMLElement, text: string): HTMLTextAreaElement {
     const editor = container.createEl("textarea");
+    editor.addClass("hybrid-editor");
+    editor.addClass("hybrid-editor--final");
     editor.value = text;
-    editor.style.width = "100%";
-    editor.style.height = "100%";
-    editor.style.border = "none";
-    editor.style.outline = "none";
-    editor.style.resize = "none";
-    editor.style.padding = "8px";
-    editor.style.boxSizing = "border-box";
-    editor.style.fontFamily = "monospace";
-    editor.style.fontSize = `${this.fontSize}px`;
-    editor.style.lineHeight = "1.5";
-    editor.style.backgroundColor = "white";
-    editor.style.overflow = "auto";
 
     this.history = [text];
     this.historyIndex = 0;
@@ -588,27 +528,8 @@ export class HybridDiffModal extends Modal {
 
   private createInlineDiffOverlay(container: HTMLElement): { overlay: HTMLDivElement; content: HTMLDivElement } {
     const overlay = container.createDiv({ cls: "diff-inline-overlay" });
-    overlay.style.position = "absolute";
-    overlay.style.top = "0";
-    overlay.style.left = "0";
-    overlay.style.right = "0";
-    overlay.style.bottom = "0";
-    overlay.style.pointerEvents = "none";
-    overlay.style.zIndex = "0";
-    overlay.style.overflow = "hidden";
 
     const content = overlay.createDiv({ cls: "diff-inline-content" });
-    content.style.width = "100%";
-    content.style.height = "100%";
-    content.style.overflow = "visible";
-    content.style.boxSizing = "border-box";
-    content.style.padding = "8px";
-    content.style.fontFamily = "monospace";
-    content.style.fontSize = `${this.fontSize}px`;
-    content.style.lineHeight = "1.5";
-    content.style.whiteSpace = "pre-wrap";
-    content.style.wordWrap = "break-word";
-    content.style.pointerEvents = "none";
 
     return { overlay, content };
   }
@@ -966,6 +887,40 @@ export class HybridDiffModal extends Modal {
     }
   }
 
+  private normalizeOpacity(value: number): number {
+    const percent = Number.isFinite(value) ? value : 0;
+    return Math.min(1, Math.max(0, percent / 100));
+  }
+
+  private resolveRgba(color: string, alpha: number): string {
+    const rgb = this.hexToRgb(color);
+    if (!rgb) {
+      return color;
+    }
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  }
+
+  private hexToRgb(color: string): { r: number; g: number; b: number } | null {
+    const hex = color.trim();
+    if (!hex.startsWith("#")) {
+      return null;
+    }
+    const value = hex.slice(1);
+    if (value.length === 3) {
+      const r = parseInt(value[0] + value[0], 16);
+      const g = parseInt(value[1] + value[1], 16);
+      const b = parseInt(value[2] + value[2], 16);
+      return { r, g, b };
+    }
+    if (value.length === 6) {
+      const r = parseInt(value.slice(0, 2), 16);
+      const g = parseInt(value.slice(2, 4), 16);
+      const b = parseInt(value.slice(4, 6), 16);
+      return { r, g, b };
+    }
+    return null;
+  }
+
   private addToHistory(value: string): void {
     if (this.historyIndex < this.history.length - 1) {
       this.history = this.history.slice(0, this.historyIndex + 1);
@@ -981,88 +936,47 @@ export class HybridDiffModal extends Modal {
 
   private addHybridActions(container: HTMLElement): void {
     const actionsContainer = container.createDiv({ cls: "hybrid-actions" });
-    actionsContainer.style.display = "flex";
-    actionsContainer.style.gap = "10px";
-    actionsContainer.style.padding = "10px 0";
-    actionsContainer.style.justifyContent = "center";
-    actionsContainer.style.flexWrap = "wrap";
 
     this.toggleEditModeBtn = actionsContainer.createEl("button", {
       text: this.plugin.t("modal.toggle.editMode"),
+      cls: "hybrid-toggle-btn",
     });
-    this.toggleEditModeBtn.style.padding = "8px 16px";
-    this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
-    this.toggleEditModeBtn.style.color = "white";
-    this.toggleEditModeBtn.style.border = "none";
-    this.toggleEditModeBtn.style.borderRadius = "4px";
-    this.toggleEditModeBtn.style.cursor = "pointer";
+    this.toggleEditModeBtn.setAttribute("aria-pressed", "false");
 
     const clearBtn = actionsContainer.createEl("button", {
       text: this.plugin.t("modal.action.clear"),
+      cls: "hybrid-clear-btn",
     });
-    clearBtn.style.padding = "8px 16px";
-    clearBtn.style.backgroundColor = "#f44336";
-    clearBtn.style.color = "white";
-    clearBtn.style.border = "none";
-    clearBtn.style.borderRadius = "4px";
-    clearBtn.style.cursor = "pointer";
 
     const applyBtn = actionsContainer.createEl("button", {
       text: this.plugin.t("modal.action.apply"),
-      cls: "mod-cta",
+      cls: "mod-cta hybrid-apply-btn",
     });
-    applyBtn.style.padding = "8px 16px";
-    applyBtn.style.backgroundColor = "#4CAF50";
-    applyBtn.style.color = "white";
-    applyBtn.style.border = "none";
-    applyBtn.style.borderRadius = "4px";
-    applyBtn.style.cursor = "pointer";
 
     const cancelBtn = actionsContainer.createEl("button", {
       text: this.plugin.t("modal.action.cancel"),
+      cls: "hybrid-cancel-btn",
     });
-    cancelBtn.style.padding = "8px 16px";
-    cancelBtn.style.backgroundColor = "#666";
-    cancelBtn.style.color = "white";
-    cancelBtn.style.border = "none";
-    cancelBtn.style.borderRadius = "4px";
-    cancelBtn.style.cursor = "pointer";
 
-    const fontControlsContainer = actionsContainer.createDiv();
-    fontControlsContainer.style.display = "flex";
-    fontControlsContainer.style.alignItems = "center";
-    fontControlsContainer.style.gap = "8px";
-    fontControlsContainer.style.marginLeft = "20px";
+    const fontControlsContainer = actionsContainer.createDiv({ cls: "hybrid-font-controls" });
 
     const fontLabel = fontControlsContainer.createEl("span", {
       text: this.plugin.t("modal.fontSize.label"),
+      cls: "hybrid-font-label",
     });
-    fontLabel.style.fontSize = "14px";
-    fontLabel.style.color = "#ccc";
 
-    const decreaseBtn = fontControlsContainer.createEl("button", { text: "-" });
-    decreaseBtn.style.padding = "4px 8px";
-    decreaseBtn.style.borderRadius = "4px";
-    decreaseBtn.style.border = "1px solid #666";
-    decreaseBtn.style.backgroundColor = "#333";
-    decreaseBtn.style.color = "white";
-    decreaseBtn.style.cursor = "pointer";
+    const decreaseBtn = fontControlsContainer.createEl("button", { text: "-", cls: "hybrid-font-btn" });
+    decreaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.decreaseAriaLabel"));
+    decreaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.decreaseAriaLabel"));
 
     this.fontDisplayEl = fontControlsContainer.createEl("span", {
       text: `${this.fontSize}px`,
+      cls: "hybrid-font-display",
     });
-    this.fontDisplayEl.style.fontSize = "14px";
-    this.fontDisplayEl.style.color = "#ccc";
-    this.fontDisplayEl.style.minWidth = "40px";
-    this.fontDisplayEl.style.textAlign = "center";
 
-    const increaseBtn = fontControlsContainer.createEl("button", { text: "+" });
-    increaseBtn.style.padding = "4px 8px";
-    increaseBtn.style.borderRadius = "4px";
-    increaseBtn.style.border = "1px solid #666";
-    increaseBtn.style.backgroundColor = "#333";
-    increaseBtn.style.color = "white";
-    increaseBtn.style.cursor = "pointer";
+    const increaseBtn = fontControlsContainer.createEl("button", { text: "+", cls: "hybrid-font-btn" });
+    increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
+    increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
 
     this.toggleEditModeBtn.addEventListener("click", () => {
       this.toggleEditMode();
@@ -1071,6 +985,8 @@ export class HybridDiffModal extends Modal {
     clearBtn.addEventListener("click", () => {
       if (this.finalEditor) {
         this.finalEditor.value = "";
+        this.finalEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        this.syncFinalEditorMirror();
       }
     });
 
@@ -1326,26 +1242,9 @@ export class HybridDiffModal extends Modal {
 
   private updateFontSize(newSize: number): void {
     this.fontSize = newSize;
-
-    if (this.originalEditor) {
-      this.originalEditor.style.fontSize = `${newSize}px`;
-    }
-    if (this.modifiedEditor) {
-      this.modifiedEditor.style.fontSize = `${newSize}px`;
-    }
-    if (this.finalEditor) {
-      this.finalEditor.style.fontSize = `${newSize}px`;
-    }
+    this.modalEl.style.setProperty("--hybrid-font-size", `${newSize}px`);
     this.syncFinalEditorMirrorStyles();
     this.syncFinalEditorMirror();
-
-    // Update overlay font sizes
-    if (this.leftDiffContent) {
-      this.leftDiffContent.style.fontSize = `${newSize}px`;
-    }
-    if (this.rightDiffContent) {
-      this.rightDiffContent.style.fontSize = `${newSize}px`;
-    }
 
     if (this.fontDisplayEl) {
       this.fontDisplayEl.textContent = `${newSize}px`;
@@ -1361,12 +1260,13 @@ export class HybridDiffModal extends Modal {
     if (this.toggleEditModeBtn) {
       if (this.isEditModeEnabled) {
         this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.readOnly");
-        this.toggleEditModeBtn.style.backgroundColor = "#FF9800";
       } else {
         this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.editMode");
-        this.toggleEditModeBtn.style.backgroundColor = "#2196F3";
       }
+      this.toggleEditModeBtn.setAttribute("aria-pressed", this.isEditModeEnabled ? "true" : "false");
+      this.toggleEditModeBtn.classList.toggle("is-active", this.isEditModeEnabled);
     }
+    this.modalEl.classList.toggle("is-edit-mode", this.isEditModeEnabled);
 
     if (this.originalEditor) {
       this.originalEditor.readOnly = !this.isEditModeEnabled;

@@ -2,5 +2,11 @@
   "fontSize": 14,
   "smartDblClickInsertNewlines": true,
   "language": "zh",
+  "defaultDiffStyle": "background",
+  "completeDiffStyle": "text",
+  "diffAddedColor": "#2fa235",
+  "diffDeletedColor": "#d81313",
+  "diffDefaultOpacity": 18,
+  "diffCompleteOpacity": 28,
   "defaultDiffPosition": "center"
 }

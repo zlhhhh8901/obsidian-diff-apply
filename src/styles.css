@@ -21,8 +21,163 @@
   box-sizing: border-box !important;
 }
 
+.hybrid-diff-modal {
+  width: 95vw;
+  max-width: 1400px;
+  height: 85vh;
+  overflow: hidden;
+
+  --hybrid-font-size: 14px;
+  --hybrid-gap: 10px;
+  --hybrid-editor-padding: 8px;
+  --hybrid-radius: var(--radius-m, 6px);
+  --hybrid-border: var(--background-modifier-border);
+  --hybrid-bg: var(--background-primary);
+  --hybrid-bg-secondary: var(--background-secondary);
+  --hybrid-text-muted: var(--text-muted);
+  --hybrid-accent: var(--interactive-accent);
+  --hybrid-scrollbar-track: var(--scrollbar-bg, transparent);
+  --hybrid-scrollbar-thumb: var(--scrollbar-thumb-bg, rgba(128, 128, 128, 0.6));
+  --hybrid-scrollbar-thumb-hover: var(--scrollbar-active-thumb-bg, rgba(128, 128, 128, 0.8));
+
+  /* Diff colors are scoped so users/themes can override them. */
+  --hybrid-diff-added: var(--color-green, #2e7d32);
+  --hybrid-diff-deleted: var(--color-red, #d32f2f);
+  --hybrid-diff-added-bg: rgba(46, 125, 50, 0.18);
+  --hybrid-diff-deleted-bg: rgba(211, 47, 47, 0.18);
+  --hybrid-diff-added-bg-strong: rgba(46, 125, 50, 0.28);
+  --hybrid-diff-deleted-bg-strong: rgba(211, 47, 47, 0.28);
+}
+
+.hybrid-diff-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: var(--hybrid-gap);
+}
+
+.hybrid-hint {
+  padding: 8px 10px;
+  border: 1px solid var(--hybrid-border);
+  border-radius: var(--hybrid-radius);
+  background: var(--hybrid-bg-secondary);
+  color: var(--hybrid-text-muted);
+  font-size: calc(var(--hybrid-font-size) - 1px);
+}
+
+.hybrid-editors-container {
+  display: flex;
+  flex: 1;
+  gap: var(--hybrid-gap);
+  min-height: 0;
+}
+
 .hybrid-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--hybrid-border);
+  border-radius: var(--hybrid-radius);
+  overflow: hidden;
+  background: var(--hybrid-bg);
+}
+
+.hybrid-panel.editable {
+  border-width: 2px;
+  border-color: var(--hybrid-accent);
+}
+
+.hybrid-panel .panel-header {
+  padding: 8px 10px;
+  background: var(--hybrid-bg-secondary);
+  border-bottom: 1px solid var(--hybrid-border);
+  font-weight: 600;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.hybrid-panel.editable .panel-header {
+  background: var(--hybrid-accent);
+  color: var(--text-on-accent, #fff);
+}
+
+.hybrid-panel .panel-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  background: var(--hybrid-bg-secondary);
+}
+
+.hybrid-panel.editable .panel-content {
+  background: var(--hybrid-bg);
+}
+
+.hybrid-editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: var(--hybrid-editor-padding);
+  box-sizing: border-box;
+  font-family: var(--font-monospace, monospace);
+  font-size: var(--hybrid-font-size);
+  line-height: 1.5;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+
+.hybrid-editor--readonly {
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text-normal);
+}
+
+.hybrid-editor--final {
+  background: var(--background-modifier-form-field, var(--hybrid-bg));
+  color: var(--text-normal);
+}
+
+.hybrid-actions {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.hybrid-font-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.hybrid-font-label,
+.hybrid-font-display {
+  color: var(--hybrid-text-muted);
+  font-size: var(--font-ui-small, 12px);
+}
+
+.hybrid-font-display {
+  min-width: 40px;
+  text-align: center;
+}
+
+.hybrid-font-btn {
+  padding: 4px 8px;
+}
+
+.hybrid-toggle-btn.is-active {
+  border-color: var(--hybrid-accent);
+  box-shadow: 0 0 0 2px var(--hybrid-accent);
 }
 
 .hybrid-diff-modal textarea::selection {
@@ -74,6 +229,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   pointer-events: auto;
+  scrollbar-color: var(--hybrid-scrollbar-thumb) var(--hybrid-scrollbar-track);
 }
 
 .diff-inline-overlay.scrollable::-webkit-scrollbar {
@@ -81,16 +237,16 @@
 }
 
 .diff-inline-overlay.scrollable::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--hybrid-scrollbar-track);
 }
 
 .diff-inline-overlay.scrollable::-webkit-scrollbar-thumb {
-  background: #888;
+  background: var(--hybrid-scrollbar-thumb);
   border-radius: 4px;
 }
 
 .diff-inline-overlay.scrollable::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--hybrid-scrollbar-thumb-hover);
 }
 
 /* Scrollable content area */
@@ -99,44 +255,95 @@
   height: 100%;
   overflow: visible;
   box-sizing: border-box;
-  padding: 8px;
-  font-family: monospace;
+  padding: var(--hybrid-editor-padding);
+  font-family: var(--font-monospace, monospace);
+  font-size: var(--hybrid-font-size);
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
   pointer-events: none;
+  color: var(--text-normal);
 }
 
 /* Default state - semi-transparent backgrounds */
 .diff-deleted-default {
-  background-color: rgba(255, 0, 0, 0.15);
+  background-color: var(--hybrid-diff-deleted-bg);
 }
 
 .diff-added-default {
-  background-color: rgba(0, 255, 0, 0.15);
+  background-color: var(--hybrid-diff-added-bg);
 }
 
 /* Hover state - thin underlines */
 .diff-deleted-hover {
-  border-bottom: 2px solid #d32f2f;
+  border-bottom: 2px solid var(--hybrid-diff-deleted);
 }
 
 .diff-added-hover {
-  border-bottom: 2px solid #2e7d32;
+  border-bottom: 2px solid var(--hybrid-diff-added);
 }
 
 /* Complete diff - full styling */
 .diff-deleted-complete {
-  background-color: #ffebee;
-  color: #d32f2f;
+  background-color: var(--hybrid-diff-deleted-bg-strong);
+  color: var(--hybrid-diff-deleted);
   text-decoration: line-through;
-  text-decoration-color: #d32f2f;
+  text-decoration-color: var(--hybrid-diff-deleted);
   text-decoration-thickness: 2px;
 }
 
 .diff-added-complete {
-  background-color: #e8f5e8;
-  color: #2e7d32;
+  background-color: var(--hybrid-diff-added-bg-strong);
+  color: var(--hybrid-diff-added);
+}
+
+/* Default style variants */
+.hybrid-diff-modal[data-default-style="text"] .diff-deleted-default {
+  background-color: transparent;
+  color: var(--hybrid-diff-deleted);
+}
+
+.hybrid-diff-modal[data-default-style="text"] .diff-added-default {
+  background-color: transparent;
+  color: var(--hybrid-diff-added);
+}
+
+.hybrid-diff-modal[data-default-style="underline"] .diff-deleted-default {
+  background-color: transparent;
+  color: inherit;
+  border-bottom: 2px solid var(--hybrid-diff-deleted);
+}
+
+.hybrid-diff-modal[data-default-style="underline"] .diff-added-default {
+  background-color: transparent;
+  color: inherit;
+  border-bottom: 2px solid var(--hybrid-diff-added);
+}
+
+/* Complete style variants */
+.hybrid-diff-modal[data-complete-style="text"] .diff-deleted-complete {
+  background-color: transparent;
+  color: var(--hybrid-diff-deleted);
+  text-decoration: line-through;
+  text-decoration-color: var(--hybrid-diff-deleted);
+}
+
+.hybrid-diff-modal[data-complete-style="text"] .diff-added-complete {
+  background-color: transparent;
+  color: var(--hybrid-diff-added);
+}
+
+.hybrid-diff-modal[data-complete-style="underline"] .diff-deleted-complete {
+  background-color: transparent;
+  color: inherit;
+  text-decoration: line-through;
+  text-decoration-color: var(--hybrid-diff-deleted);
+}
+
+.hybrid-diff-modal[data-complete-style="underline"] .diff-added-complete {
+  background-color: transparent;
+  color: inherit;
+  border-bottom: 2px solid var(--hybrid-diff-added);
 }
 
 /* Textarea transparency when diff is active */
