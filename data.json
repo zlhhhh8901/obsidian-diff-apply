@@ -8,5 +8,9 @@
   "diffDeletedColor": "#d81313",
   "diffDefaultOpacity": 18,
   "diffCompleteOpacity": 28,
-  "defaultDiffPosition": "center"
+  "defaultDiffPosition": "center",
+  "ui": {
+    "fontSize": 14,
+    "diffGranularity": "word"
+  }
 }

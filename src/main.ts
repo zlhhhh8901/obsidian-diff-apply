@@ -3,14 +3,32 @@ import type { I18nKey } from "./i18n";
 import { t as tI18n } from "./i18n";
 import { HybridDiffModal } from "./ui/HybridDiffModal";
 
-const DEFAULT_FONT_SIZE = 14;
+export type DiffGranularityMode = "auto" | "word" | "char";
+
+type PluginData = Record<string, unknown>;
+
+export interface DiffApplyPluginUiState {
+  fontSize: number;
+  diffGranularity: DiffGranularityMode;
+}
+
+const DEFAULT_UI_STATE: DiffApplyPluginUiState = {
+  fontSize: 14,
+  diffGranularity: "auto",
+};
 
 export default class DiffApplyPlugin extends Plugin {
+  // UI-only preferences: configured inside the modal, not in Obsidian Settings.
+  ui: DiffApplyPluginUiState = { ...DEFAULT_UI_STATE };
+  private pluginData: PluginData = {};
+
   t(key: I18nKey): string {
     return tI18n(key);
   }
 
   async onload(): Promise<void> {
+    await this.loadUiState();
+
     this.addCommand({
       id: "diff-apply-hybrid",
       name: this.t("command.hybrid.name"),
@@ -33,6 +51,19 @@ export default class DiffApplyPlugin extends Plugin {
   }
 
   onunload(): void {}
+
+  private async loadUiState(): Promise<void> {
+    const data = (await this.loadData()) as PluginData | null;
+    this.pluginData = data ?? {};
+
+    const ui = (this.pluginData.ui ?? {}) as Partial<DiffApplyPluginUiState>;
+    this.ui = { ...DEFAULT_UI_STATE, ...ui };
+  }
+
+  async saveUiState(): Promise<void> {
+    this.pluginData = { ...this.pluginData, ui: this.ui };
+    await this.saveData(this.pluginData);
+  }
 
   private async openHybridDiffForSelection(editor: Editor): Promise<void> {
     const selection = editor.getSelection();
@@ -57,7 +88,8 @@ export default class DiffApplyPlugin extends Plugin {
       onApply: (finalText) => {
         editor.replaceRange(finalText, from, to);
       },
-      fontSize: DEFAULT_FONT_SIZE,
+      fontSize: this.ui.fontSize,
+      diffGranularity: this.ui.diffGranularity,
       plugin: this,
     });
 

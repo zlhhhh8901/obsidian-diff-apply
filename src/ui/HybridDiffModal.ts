@@ -1,6 +1,7 @@
 import { App, Modal, Notice } from "obsidian";
-import { diffChars } from "diff";
+import { diffArrays } from "diff";
 import type DiffApplyPlugin from "../main";
+import type { DiffGranularityMode } from "../main";
 import {
   getDesiredLeadingNewlineCountFromSource,
   getSmartLeadingNewlinesForTarget,
@@ -19,6 +20,7 @@ export interface HybridDiffOptions {
   modifiedText: string;
   onApply: (finalText: string) => void;
   fontSize: number;
+  diffGranularity: DiffGranularityMode;
   plugin: DiffApplyPlugin;
 }
 
@@ -27,6 +29,7 @@ export class HybridDiffModal extends Modal {
   private modifiedText: string;
   private onApply: (finalText: string) => void;
   private fontSize: number;
+  private diffGranularity: DiffGranularityMode;
   private plugin: DiffApplyPlugin;
 
   private originalEditor: HTMLTextAreaElement | null = null;
@@ -61,6 +64,7 @@ export class HybridDiffModal extends Modal {
   private toggleEditModeBtn: HTMLButtonElement | null = null;
   private boundHandleKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private fontDisplayEl: HTMLSpanElement | null = null;
+  private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
 
   // Scroll sync state
   private isSyncingScroll = false;
@@ -85,6 +89,7 @@ export class HybridDiffModal extends Modal {
     this.modifiedText = opts.modifiedText;
     this.onApply = opts.onApply;
     this.fontSize = opts.fontSize || 14;
+    this.diffGranularity = opts.diffGranularity ?? "auto";
     this.plugin = opts.plugin;
   }
 
@@ -503,6 +508,84 @@ export class HybridDiffModal extends Modal {
     return { overlay, content };
   }
 
+  private tokenizeInlineDiff(text: string): string[] {
+    if (text.length === 0) {
+      return [];
+    }
+
+    const SegmenterCtor = (Intl as unknown as { Segmenter?: unknown }).Segmenter as
+      | (new (locales?: string | string[], options?: { granularity?: "grapheme" | "word" }) => {
+          segment: (input: string) => Iterable<{ segment: string; isWordLike?: boolean }>;
+        })
+      | undefined;
+
+    if (SegmenterCtor) {
+      if (this.diffGranularity === "char") {
+        const seg = new SegmenterCtor(undefined, { granularity: "grapheme" });
+        return Array.from(seg.segment(text), (s) => s.segment);
+      }
+
+      const wordSeg = new SegmenterCtor(undefined, { granularity: "word" });
+      const wordTokens = Array.from(wordSeg.segment(text), (s) => s.segment);
+
+      if (this.diffGranularity === "word") {
+        return wordTokens;
+      }
+
+      // auto: prefer word-level, but if it collapses almost everything into a single token,
+      // fall back to grapheme to preserve some usable detail (e.g. in scripts without spaces).
+      const nonWhitespaceTokens = wordTokens.filter((t) => t.trim().length > 0);
+      if (text.trim().length > 0 && nonWhitespaceTokens.length <= 1) {
+        const seg = new SegmenterCtor(undefined, { granularity: "grapheme" });
+        return Array.from(seg.segment(text), (s) => s.segment);
+      }
+
+      return wordTokens;
+    }
+
+    if (this.diffGranularity === "char") {
+      return Array.from(text);
+    }
+
+    // Fallback tokenizer: CJK/punctuation as single chars + everything else as "word+trailing-space".
+    const tokens: string[] = [];
+    const cjkCharPattern =
+      "[\\u3400-\\u9FFF\\uF900-\\uFAFF\\u3040-\\u30FF\\uAC00-\\uD7AF\\u1100-\\u11FF\\u3130-\\u318F\\u3000-\\u303F]";
+    const cjkSplitRegex = new RegExp(`(${cjkCharPattern})`, "g");
+    const cjkTestRegex = new RegExp(`^${cjkCharPattern}$`);
+
+    const parts = text.split(cjkSplitRegex).filter((part) => part.length > 0);
+    for (const part of parts) {
+      if (cjkTestRegex.test(part)) {
+        tokens.push(part);
+        continue;
+      }
+
+      const matches = part.match(/\s+|\S+\s*/g);
+      if (matches) {
+        tokens.push(...matches);
+      }
+    }
+
+    return tokens;
+  }
+
+  private diffInlineText(originalText: string, modifiedText: string): Array<{
+    value: string;
+    added?: boolean;
+    removed?: boolean;
+  }> {
+    const originalTokens = this.tokenizeInlineDiff(originalText);
+    const modifiedTokens = this.tokenizeInlineDiff(modifiedText);
+    const diffResult = diffArrays(originalTokens, modifiedTokens);
+
+    return diffResult.map((part) => ({
+      value: part.value.join(""),
+      added: part.added,
+      removed: part.removed,
+    }));
+  }
+
   private renderDefaultDiffMarks(contentEl: HTMLElement, text: string, isLeft: boolean): void {
     if (!contentEl) {
       return;
@@ -513,7 +596,7 @@ export class HybridDiffModal extends Modal {
     if (isLeft) {
       // Left column: show only deletions with semi-transparent red background
       const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-      const diffResult = diffChars(text, currentModified);
+      const diffResult = this.diffInlineText(text, currentModified);
 
       diffResult.forEach((part) => {
         if (!part.added) {
@@ -529,7 +612,7 @@ export class HybridDiffModal extends Modal {
     } else {
       // Right column: show only additions with semi-transparent green background
       const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-      const diffResult = diffChars(currentOriginal, text);
+      const diffResult = this.diffInlineText(currentOriginal, text);
 
       diffResult.forEach((part) => {
         if (!part.removed) {
@@ -555,7 +638,7 @@ export class HybridDiffModal extends Modal {
     if (isLeft) {
       // Left column: show deletions with thin red underline
       const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-      const diffResult = diffChars(text, currentModified);
+      const diffResult = this.diffInlineText(text, currentModified);
 
       diffResult.forEach((part) => {
         if (!part.added) {
@@ -571,7 +654,7 @@ export class HybridDiffModal extends Modal {
     } else {
       // Right column: show additions with thin green underline
       const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-      const diffResult = diffChars(currentOriginal, text);
+      const diffResult = this.diffInlineText(currentOriginal, text);
 
       diffResult.forEach((part) => {
         if (!part.removed) {
@@ -594,7 +677,7 @@ export class HybridDiffModal extends Modal {
 
     contentEl.textContent = "";
 
-    const diffResult = diffChars(originalText, modifiedText);
+    const diffResult = this.diffInlineText(originalText, modifiedText);
 
     diffResult.forEach((part) => {
       const span = contentEl.createSpan();
@@ -872,28 +955,56 @@ export class HybridDiffModal extends Modal {
   private addHybridActions(container: HTMLElement): void {
     const actionsContainer = container.createDiv({ cls: "hybrid-actions" });
 
-    this.toggleEditModeBtn = actionsContainer.createEl("button", {
+    const leftGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-left" });
+    const centerGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-center" });
+    const rightGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-right" });
+
+    this.toggleEditModeBtn = leftGroup.createEl("button", {
       text: this.plugin.t("modal.toggle.editMode"),
       cls: "hybrid-toggle-btn",
     });
     this.toggleEditModeBtn.setAttribute("aria-pressed", "false");
 
-    const clearBtn = actionsContainer.createEl("button", {
+    const clearBtn = leftGroup.createEl("button", {
       text: this.plugin.t("modal.action.clear"),
       cls: "hybrid-clear-btn",
     });
 
-    const applyBtn = actionsContainer.createEl("button", {
-      text: this.plugin.t("modal.action.apply"),
-      cls: "mod-cta hybrid-apply-btn",
-    });
-
-    const cancelBtn = actionsContainer.createEl("button", {
+    const cancelBtn = rightGroup.createEl("button", {
       text: this.plugin.t("modal.action.cancel"),
       cls: "hybrid-cancel-btn",
     });
 
-    const fontControlsContainer = actionsContainer.createDiv({ cls: "hybrid-font-controls" });
+    const applyBtn = rightGroup.createEl("button", {
+      text: this.plugin.t("modal.action.apply"),
+      cls: "mod-cta hybrid-apply-btn",
+    });
+
+    const diffGranularityContainer = centerGroup.createDiv({ cls: "hybrid-diff-granularity" });
+    diffGranularityContainer.createEl("span", {
+      text: this.plugin.t("modal.diffGranularity.label"),
+      cls: "hybrid-diff-granularity-label",
+    });
+
+    const segment = diffGranularityContainer.createDiv({ cls: "hybrid-segment" });
+    const createGranularityBtn = (mode: DiffGranularityMode, labelKey: Parameters<DiffApplyPlugin["t"]>[0]) => {
+      const btn = segment.createEl("button", {
+        text: this.plugin.t(labelKey),
+        cls: "hybrid-segment-btn",
+      });
+      btn.setAttribute("type", "button");
+      btn.setAttribute("aria-pressed", "false");
+      btn.dataset.mode = mode;
+      btn.addEventListener("click", () => this.setDiffGranularity(mode));
+      this.diffGranularityBtnEls[mode] = btn;
+    };
+
+    createGranularityBtn("auto", "modal.diffGranularity.auto");
+    createGranularityBtn("word", "modal.diffGranularity.word");
+    createGranularityBtn("char", "modal.diffGranularity.char");
+    this.updateDiffGranularityUI();
+
+    const fontControlsContainer = centerGroup.createDiv({ cls: "hybrid-font-controls" });
 
     const fontLabel = fontControlsContainer.createEl("span", {
       text: this.plugin.t("modal.fontSize.label"),
@@ -952,6 +1063,32 @@ export class HybridDiffModal extends Modal {
       }
       this.updateFontSize(newSize);
     });
+  }
+
+  private updateDiffGranularityUI(): void {
+    const modes: DiffGranularityMode[] = ["auto", "word", "char"];
+    for (const mode of modes) {
+      const btn = this.diffGranularityBtnEls[mode];
+      if (!btn) {
+        continue;
+      }
+      const isActive = mode === this.diffGranularity;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+    }
+  }
+
+  private setDiffGranularity(mode: DiffGranularityMode): void {
+    if (mode === this.diffGranularity) {
+      return;
+    }
+
+    this.diffGranularity = mode;
+    this.updateDiffGranularityUI();
+    this.updateAllDiffViews();
+
+    this.plugin.ui.diffGranularity = mode;
+    void this.plugin.saveUiState();
   }
 
   private copyFromOriginal(): void {
@@ -1176,6 +1313,9 @@ export class HybridDiffModal extends Modal {
     if (this.fontDisplayEl) {
       this.fontDisplayEl.textContent = `${newSize}px`;
     }
+
+    this.plugin.ui.fontSize = newSize;
+    void this.plugin.saveUiState();
 
     // Re-render diff views with new font size
     this.updateAllDiffViews();
