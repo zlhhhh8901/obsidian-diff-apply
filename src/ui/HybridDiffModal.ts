@@ -1,7 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import { diffChars } from "diff";
 import type DiffApplyPlugin from "../main";
-import type { DiffViewPosition } from "../types";
 import {
   getDesiredLeadingNewlineCountFromSource,
   getSmartLeadingNewlinesForTarget,
@@ -16,7 +15,6 @@ export interface HybridDiffOptions {
   modifiedText: string;
   onApply: (finalText: string) => void;
   fontSize: number;
-  defaultDiffPosition: DiffViewPosition;
   plugin: DiffApplyPlugin;
 }
 
@@ -40,15 +38,13 @@ export class HybridDiffModal extends Modal {
   private boundSyncFinalEditorMirrorFocusIn: ((event: FocusEvent) => void) | null = null;
   private boundSyncFinalEditorMirrorFocusOut: ((event: FocusEvent) => void) | null = null;
 
-  // Diff view state
-  private diffViewPosition: DiffViewPosition;
-  private isDiffVisible = true;
-  private diffOverlay: HTMLDivElement | null = null;
-  private diffScrollContainer: HTMLDivElement | null = null;
-  private diffOverlayScrollTop = 0;
-  private diffScrollContainerScrollTop = 0;
-  private diffContainer: HTMLDivElement | null = null;
-  private isDiffDirty = false;
+  // Inline diff state
+  private leftHoverState: 'default' | 'hovered' = 'default';
+  private rightHoverState: 'default' | 'hovered' = 'default';
+  private leftDiffOverlay: HTMLDivElement | null = null;
+  private rightDiffOverlay: HTMLDivElement | null = null;
+  private leftDiffContent: HTMLDivElement | null = null;
+  private rightDiffContent: HTMLDivElement | null = null;
 
   private copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
   private leftPanel: HTMLDivElement | null = null;
@@ -61,6 +57,13 @@ export class HybridDiffModal extends Modal {
   private toggleEditModeBtn: HTMLButtonElement | null = null;
   private boundHandleKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private fontDisplayEl: HTMLSpanElement | null = null;
+
+  // Scroll sync state
+  private isSyncingScroll = false;
+  private leftTextareaScrollListener: (() => void) | null = null;
+  private rightTextareaScrollListener: (() => void) | null = null;
+  private leftOverlayScrollListener: (() => void) | null = null;
+  private rightOverlayScrollListener: (() => void) | null = null;
 
   // Undo history for the editor
   private history: string[] = [];
@@ -79,7 +82,6 @@ export class HybridDiffModal extends Modal {
     this.onApply = opts.onApply;
     this.fontSize = opts.fontSize || 14;
     this.plugin = opts.plugin;
-    this.diffViewPosition = opts.defaultDiffPosition || "center";
   }
 
   onOpen(): void {
@@ -146,9 +148,25 @@ export class HybridDiffModal extends Modal {
     leftContent.style.overflow = "hidden";
     leftContent.style.minHeight = "0";
     leftContent.style.position = "relative";
+    leftContent.style.backgroundColor = "#fafafa";
     const originalEditor = this.createReadOnlyEditor(leftContent, this.originalText, true);
     originalEditor.style.height = "100%";
+    originalEditor.style.position = "relative";
+    originalEditor.style.zIndex = "1";
+    originalEditor.addClass("diff-active");
     this.originalEditor = originalEditor;
+
+    // Create left diff overlay
+    const leftOverlayResult = this.createInlineDiffOverlay(leftContent);
+    this.leftDiffOverlay = leftOverlayResult.overlay;
+    this.leftDiffContent = leftOverlayResult.content;
+
+    // Sync scroll for left overlay
+    originalEditor.addEventListener('scroll', () => {
+      if (this.leftDiffContent) {
+        this.leftDiffContent.style.transform = `translate(-${originalEditor.scrollLeft}px, -${originalEditor.scrollTop}px)`;
+      }
+    });
 
     this.middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
     this.middlePanel.style.flex = "1";
@@ -200,9 +218,25 @@ export class HybridDiffModal extends Modal {
     rightContent.style.overflow = "hidden";
     rightContent.style.minHeight = "0";
     rightContent.style.position = "relative";
+    rightContent.style.backgroundColor = "#fafafa";
     const modifiedEditor = this.createReadOnlyEditor(rightContent, this.modifiedText, false);
     modifiedEditor.style.height = "100%";
+    modifiedEditor.style.position = "relative";
+    modifiedEditor.style.zIndex = "1";
+    modifiedEditor.addClass("diff-active");
     this.modifiedEditor = modifiedEditor;
+
+    // Create right diff overlay
+    const rightOverlayResult = this.createInlineDiffOverlay(rightContent);
+    this.rightDiffOverlay = rightOverlayResult.overlay;
+    this.rightDiffContent = rightOverlayResult.content;
+
+    // Sync scroll for right overlay
+    modifiedEditor.addEventListener('scroll', () => {
+      if (this.rightDiffContent) {
+        this.rightDiffContent.style.transform = `translate(-${modifiedEditor.scrollLeft}px, -${modifiedEditor.scrollTop}px)`;
+      }
+    });
 
     // Treat mouse interaction in side panels as "active" even if focus lands on <body>
     // (e.g. clicking panel chrome), so the Editor's selection/caret hint stays visible.
@@ -215,7 +249,16 @@ export class HybridDiffModal extends Modal {
     this.rightPanel.addEventListener("pointerenter", () => setSidePointerActive(true));
     this.rightPanel.addEventListener("pointerleave", () => setSidePointerActive(false));
 
-    this.updatePanelContents();
+    // Setup diff hover listeners
+    this.setupDiffHoverListeners();
+
+    // Render initial diff views
+    if (this.leftDiffContent) {
+      this.renderDefaultDiffMarks(this.leftDiffContent, this.originalText, true);
+    }
+    if (this.rightDiffContent) {
+      this.renderDefaultDiffMarks(this.rightDiffContent, this.modifiedText, false);
+    }
   }
 
   private setupFinalEditorMirror(middleContent: HTMLElement): void {
@@ -387,118 +430,6 @@ export class HybridDiffModal extends Modal {
     contentEl.appendChild(frag);
   }
 
-  private updatePanelContents(): void {
-    this.clearAllDiffOverlays();
-
-    if (this.isDiffVisible) {
-      let targetPanel: HTMLDivElement | null = null;
-      switch (this.diffViewPosition) {
-        case "left":
-          targetPanel = this.leftPanel;
-          break;
-        case "center":
-          targetPanel = this.middlePanel;
-          break;
-        case "right":
-          targetPanel = this.rightPanel;
-          break;
-      }
-
-      if (targetPanel) {
-        const content = targetPanel.querySelector<HTMLElement>(".panel-content");
-        if (content) {
-          this.createDiffOverlay(content);
-          this.isDiffDirty = false;
-          this.restoreDiffScroll();
-        }
-      }
-    }
-  }
-
-  private saveDiffScroll(): void {
-    if (this.diffOverlay) {
-      this.diffOverlayScrollTop = this.diffOverlay.scrollTop;
-    }
-    if (this.diffScrollContainer) {
-      this.diffScrollContainerScrollTop = this.diffScrollContainer.scrollTop;
-    }
-  }
-
-  private restoreDiffScroll(): void {
-    if (this.diffOverlay) {
-      this.diffOverlay.scrollTop = this.diffOverlayScrollTop;
-    }
-    if (this.diffScrollContainer) {
-      this.diffScrollContainer.scrollTop = this.diffScrollContainerScrollTop;
-    }
-  }
-
-  private clearAllDiffOverlays(): void {
-    this.saveDiffScroll();
-    [this.leftPanel, this.middlePanel, this.rightPanel].forEach((panel) => {
-      if (panel) {
-        const existingOverlay = panel.querySelector(".diff-overlay");
-        if (existingOverlay) {
-          existingOverlay.remove();
-        }
-      }
-    });
-    this.diffOverlay = null;
-    this.diffScrollContainer = null;
-    this.diffContainer = null;
-  }
-
-  private switchDiffPosition(position: DiffViewPosition): void {
-    this.diffViewPosition = position;
-    this.updatePanelContents();
-  }
-
-  private moveDiffLeft(): void {
-    if (this.diffViewPosition === "center") {
-      this.diffViewPosition = "left";
-      this.updatePanelContents();
-    } else if (this.diffViewPosition === "right") {
-      this.diffViewPosition = "center";
-      this.updatePanelContents();
-    }
-  }
-
-  private moveDiffRight(): void {
-    if (this.diffViewPosition === "left") {
-      this.diffViewPosition = "center";
-      this.updatePanelContents();
-    } else if (this.diffViewPosition === "center") {
-      this.diffViewPosition = "right";
-      this.updatePanelContents();
-    }
-  }
-
-  private toggleDiffVisibility(): void {
-    this.isDiffVisible = !this.isDiffVisible;
-    if (this.isDiffVisible) {
-      this.showDiffOverlay();
-    } else {
-      this.hideDiffOverlay();
-    }
-  }
-
-  private showDiffOverlay(): void {
-    if (!this.diffOverlay || this.isDiffDirty) {
-      this.updatePanelContents();
-      return;
-    }
-    this.diffOverlay.style.display = "block";
-    this.restoreDiffScroll();
-  }
-
-  private hideDiffOverlay(): void {
-    if (!this.diffOverlay) {
-      return;
-    }
-    this.saveDiffScroll();
-    this.diffOverlay.style.display = "none";
-  }
-
   private createReadOnlyEditor(
     container: HTMLElement,
     text: string,
@@ -511,10 +442,14 @@ export class HybridDiffModal extends Modal {
     editor.style.border = "none";
     editor.style.outline = "none";
     editor.style.resize = "none";
+    editor.style.padding = "8px";
+    editor.style.boxSizing = "border-box";
     editor.style.fontFamily = "monospace";
     editor.style.fontSize = `${this.fontSize}px`;
     editor.style.lineHeight = "1.5";
-    editor.style.backgroundColor = "#fafafa";
+    editor.style.backgroundColor = "transparent";
+    editor.style.color = "transparent";
+    editor.style.caretColor = "black";
     editor.style.overflow = "auto";
     editor.style.whiteSpace = "pre-wrap";
     editor.style.wordWrap = "break-word";
@@ -522,17 +457,18 @@ export class HybridDiffModal extends Modal {
     editor.style.cursor = "text";
     editor.readOnly = true;
 
+    // Debounced input handler for real-time diff updates in edit mode
+    let inputDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     editor.addEventListener("input", () => {
       if (!this.isEditModeEnabled) {
         return;
       }
-      if (this.isDiffVisible) {
-        window.setTimeout(() => {
-          this.updateDiffView();
-        }, 100);
-      } else {
-        this.isDiffDirty = true;
+      if (inputDebounceTimer) {
+        clearTimeout(inputDebounceTimer);
       }
+      inputDebounceTimer = setTimeout(() => {
+        this.updateAllDiffViews();
+      }, 300);
     });
 
     editor.addEventListener("dblclick", (event) => {
@@ -588,6 +524,8 @@ export class HybridDiffModal extends Modal {
     editor.style.border = "none";
     editor.style.outline = "none";
     editor.style.resize = "none";
+    editor.style.padding = "8px";
+    editor.style.boxSizing = "border-box";
     editor.style.fontFamily = "monospace";
     editor.style.fontSize = `${this.fontSize}px`;
     editor.style.lineHeight = "1.5";
@@ -646,6 +584,386 @@ export class HybridDiffModal extends Modal {
     });
 
     return editor;
+  }
+
+  private createInlineDiffOverlay(container: HTMLElement): { overlay: HTMLDivElement; content: HTMLDivElement } {
+    const overlay = container.createDiv({ cls: "diff-inline-overlay" });
+    overlay.style.position = "absolute";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.right = "0";
+    overlay.style.bottom = "0";
+    overlay.style.pointerEvents = "none";
+    overlay.style.zIndex = "0";
+    overlay.style.overflow = "hidden";
+
+    const content = overlay.createDiv({ cls: "diff-inline-content" });
+    content.style.width = "100%";
+    content.style.height = "100%";
+    content.style.overflow = "visible";
+    content.style.boxSizing = "border-box";
+    content.style.padding = "8px";
+    content.style.fontFamily = "monospace";
+    content.style.fontSize = `${this.fontSize}px`;
+    content.style.lineHeight = "1.5";
+    content.style.whiteSpace = "pre-wrap";
+    content.style.wordWrap = "break-word";
+    content.style.pointerEvents = "none";
+
+    return { overlay, content };
+  }
+
+  private renderDefaultDiffMarks(contentEl: HTMLElement, text: string, isLeft: boolean): void {
+    if (!contentEl) {
+      return;
+    }
+
+    contentEl.textContent = "";
+
+    if (isLeft) {
+      // Left column: show only deletions with semi-transparent red background
+      const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+      const diffResult = diffChars(text, currentModified);
+
+      diffResult.forEach((part) => {
+        if (!part.added) {
+          // Show removed and unchanged text
+          const span = contentEl.createSpan();
+          span.textContent = part.value;
+
+          if (part.removed) {
+            span.addClass("diff-deleted-default");
+          }
+        }
+      });
+    } else {
+      // Right column: show only additions with semi-transparent green background
+      const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+      const diffResult = diffChars(currentOriginal, text);
+
+      diffResult.forEach((part) => {
+        if (!part.removed) {
+          // Show added and unchanged text
+          const span = contentEl.createSpan();
+          span.textContent = part.value;
+
+          if (part.added) {
+            span.addClass("diff-added-default");
+          }
+        }
+      });
+    }
+  }
+
+  private renderHoverDiffMarks(contentEl: HTMLElement, text: string, isLeft: boolean): void {
+    if (!contentEl) {
+      return;
+    }
+
+    contentEl.textContent = "";
+
+    if (isLeft) {
+      // Left column: show deletions with thin red underline
+      const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+      const diffResult = diffChars(text, currentModified);
+
+      diffResult.forEach((part) => {
+        if (!part.added) {
+          // Show removed and unchanged text
+          const span = contentEl.createSpan();
+          span.textContent = part.value;
+
+          if (part.removed) {
+            span.addClass("diff-deleted-hover");
+          }
+        }
+      });
+    } else {
+      // Right column: show additions with thin green underline
+      const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+      const diffResult = diffChars(currentOriginal, text);
+
+      diffResult.forEach((part) => {
+        if (!part.removed) {
+          // Show added and unchanged text
+          const span = contentEl.createSpan();
+          span.textContent = part.value;
+
+          if (part.added) {
+            span.addClass("diff-added-hover");
+          }
+        }
+      });
+    }
+  }
+
+  private renderCompleteDiff(contentEl: HTMLElement, originalText: string, modifiedText: string): void {
+    if (!contentEl) {
+      return;
+    }
+
+    contentEl.textContent = "";
+
+    const diffResult = diffChars(originalText, modifiedText);
+
+    diffResult.forEach((part) => {
+      const span = contentEl.createSpan();
+      span.textContent = part.value;
+
+      if (part.removed) {
+        span.addClass("diff-deleted-complete");
+      } else if (part.added) {
+        span.addClass("diff-added-complete");
+      }
+    });
+  }
+
+  private setupDiffHoverListeners(): void {
+    if (!this.leftPanel || !this.rightPanel) {
+      return;
+    }
+
+    this.leftPanel.addEventListener("mouseenter", () => this.handleLeftPanelEnter());
+    this.leftPanel.addEventListener("mouseleave", () => this.handleLeftPanelLeave());
+    this.rightPanel.addEventListener("mouseenter", () => this.handleRightPanelEnter());
+    this.rightPanel.addEventListener("mouseleave", () => this.handleRightPanelLeave());
+  }
+
+  private handleLeftPanelEnter(): void {
+    this.leftHoverState = 'hovered';
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    if (this.leftDiffContent) {
+      this.renderHoverDiffMarks(this.leftDiffContent, currentOriginal, true);
+    }
+    if (this.rightDiffContent && this.rightDiffOverlay) {
+      this.renderCompleteDiff(this.rightDiffContent, currentOriginal, currentModified);
+      // Enable scrolling for complete diff view
+      this.rightDiffOverlay.addClass("scrollable");
+      this.rightDiffContent.style.transform = "none";
+
+      // Ensure textarea has enough scrollable space to match overlay
+      if (this.originalEditor) {
+        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+      }
+    }
+
+    // Setup scroll sync: left textarea <-> right overlay
+    if (this.originalEditor && this.rightDiffOverlay) {
+      this.leftTextareaScrollListener = () => {
+        if (this.rightDiffOverlay) {
+          this.syncScrollByPercentage(this.originalEditor!, this.rightDiffOverlay);
+        }
+      };
+      this.rightOverlayScrollListener = () => {
+        if (this.originalEditor) {
+          this.syncScrollByPercentage(this.rightDiffOverlay!, this.originalEditor);
+        }
+      };
+
+      this.originalEditor.addEventListener('scroll', this.leftTextareaScrollListener);
+      this.rightDiffOverlay.addEventListener('scroll', this.rightOverlayScrollListener);
+    }
+  }
+
+  private handleLeftPanelLeave(): void {
+    this.leftHoverState = 'default';
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    if (this.leftDiffContent) {
+      this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
+    }
+    if (this.rightDiffContent && this.rightDiffOverlay) {
+      this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
+      // Restore scroll sync
+      this.rightDiffOverlay.removeClass("scrollable");
+      if (this.modifiedEditor) {
+        this.rightDiffContent.style.transform = `translate(-${this.modifiedEditor.scrollLeft}px, -${this.modifiedEditor.scrollTop}px)`;
+      }
+    }
+
+    // Restore original scrollable space
+    if (this.originalEditor) {
+      this.restoreScrollableSpace(this.originalEditor);
+    }
+
+    // Remove scroll sync listeners
+    if (this.leftTextareaScrollListener && this.originalEditor) {
+      this.originalEditor.removeEventListener('scroll', this.leftTextareaScrollListener);
+      this.leftTextareaScrollListener = null;
+    }
+    if (this.rightOverlayScrollListener && this.rightDiffOverlay) {
+      this.rightDiffOverlay.removeEventListener('scroll', this.rightOverlayScrollListener);
+      this.rightOverlayScrollListener = null;
+    }
+  }
+
+  private handleRightPanelEnter(): void {
+    this.rightHoverState = 'hovered';
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    if (this.rightDiffContent) {
+      this.renderHoverDiffMarks(this.rightDiffContent, currentModified, false);
+    }
+    if (this.leftDiffContent && this.leftDiffOverlay) {
+      this.renderCompleteDiff(this.leftDiffContent, currentOriginal, currentModified);
+      // Enable scrolling for complete diff view
+      this.leftDiffOverlay.addClass("scrollable");
+      this.leftDiffContent.style.transform = "none";
+
+      // Ensure textarea has enough scrollable space to match overlay
+      if (this.modifiedEditor) {
+        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+      }
+    }
+
+    // Setup scroll sync: right textarea <-> left overlay
+    if (this.modifiedEditor && this.leftDiffOverlay) {
+      this.rightTextareaScrollListener = () => {
+        if (this.leftDiffOverlay) {
+          this.syncScrollByPercentage(this.modifiedEditor!, this.leftDiffOverlay);
+        }
+      };
+      this.leftOverlayScrollListener = () => {
+        if (this.modifiedEditor) {
+          this.syncScrollByPercentage(this.leftDiffOverlay!, this.modifiedEditor);
+        }
+      };
+
+      this.modifiedEditor.addEventListener('scroll', this.rightTextareaScrollListener);
+      this.leftDiffOverlay.addEventListener('scroll', this.leftOverlayScrollListener);
+    }
+  }
+
+  private handleRightPanelLeave(): void {
+    this.rightHoverState = 'default';
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    if (this.rightDiffContent) {
+      this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
+    }
+    if (this.leftDiffContent && this.leftDiffOverlay) {
+      this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
+      // Restore scroll sync
+      this.leftDiffOverlay.removeClass("scrollable");
+      if (this.originalEditor) {
+        this.leftDiffContent.style.transform = `translate(-${this.originalEditor.scrollLeft}px, -${this.originalEditor.scrollTop}px)`;
+      }
+    }
+
+    // Restore original scrollable space
+    if (this.modifiedEditor) {
+      this.restoreScrollableSpace(this.modifiedEditor);
+    }
+
+    // Remove scroll sync listeners
+    if (this.rightTextareaScrollListener && this.modifiedEditor) {
+      this.modifiedEditor.removeEventListener('scroll', this.rightTextareaScrollListener);
+      this.rightTextareaScrollListener = null;
+    }
+    if (this.leftOverlayScrollListener && this.leftDiffOverlay) {
+      this.leftDiffOverlay.removeEventListener('scroll', this.leftOverlayScrollListener);
+      this.leftOverlayScrollListener = null;
+    }
+  }
+
+  private syncDiffOverlayScroll(textarea: HTMLTextAreaElement, content: HTMLDivElement): void {
+    if (!textarea || !content) {
+      return;
+    }
+    content.scrollTop = textarea.scrollTop;
+    content.scrollLeft = textarea.scrollLeft;
+  }
+
+  private syncScrollByPercentage(sourceEl: HTMLElement, targetEl: HTMLElement): void {
+    if (!sourceEl || !targetEl || this.isSyncingScroll) {
+      return;
+    }
+
+    this.isSyncingScroll = true;
+
+    try {
+      // Calculate scroll percentage of source element
+      const sourceScrollHeight = sourceEl.scrollHeight - sourceEl.clientHeight;
+      const sourceScrollPercentage = sourceScrollHeight > 0
+        ? sourceEl.scrollTop / sourceScrollHeight
+        : 0;
+
+      // Apply percentage to target element
+      const targetScrollHeight = targetEl.scrollHeight - targetEl.clientHeight;
+      targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
+
+      // Sync horizontal scroll by pixels (usually not much difference)
+      targetEl.scrollLeft = sourceEl.scrollLeft;
+    } finally {
+      // Use setTimeout to reset flag after current event loop
+      setTimeout(() => {
+        this.isSyncingScroll = false;
+      }, 0);
+    }
+  }
+
+  private ensureScrollableSpace(textarea: HTMLTextAreaElement, overlay: HTMLElement): void {
+    if (!textarea || !overlay) {
+      return;
+    }
+
+    // Calculate how much scrollable space each element has
+    const textareaScrollableHeight = textarea.scrollHeight - textarea.clientHeight;
+    const overlayScrollableHeight = overlay.scrollHeight - overlay.clientHeight;
+
+    // If overlay needs more scroll space than textarea has, add padding to textarea
+    if (overlayScrollableHeight > textareaScrollableHeight) {
+      const additionalPadding = overlayScrollableHeight - textareaScrollableHeight;
+      const currentPadding = parseInt(window.getComputedStyle(textarea).paddingBottom) || 0;
+      textarea.style.paddingBottom = `${currentPadding + additionalPadding}px`;
+      // Store original padding for restoration
+      textarea.dataset.originalPaddingBottom = currentPadding.toString();
+    }
+  }
+
+  private restoreScrollableSpace(textarea: HTMLTextAreaElement): void {
+    if (!textarea) {
+      return;
+    }
+
+    // Restore original padding if it was modified
+    if (textarea.dataset.originalPaddingBottom !== undefined) {
+      textarea.style.paddingBottom = `${textarea.dataset.originalPaddingBottom}px`;
+      delete textarea.dataset.originalPaddingBottom;
+    }
+  }
+
+  private updateAllDiffViews(): void {
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    if (this.leftHoverState === 'default' && this.rightHoverState === 'default') {
+      if (this.leftDiffContent) {
+        this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
+      }
+      if (this.rightDiffContent) {
+        this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
+      }
+    } else if (this.leftHoverState === 'hovered') {
+      if (this.leftDiffContent) {
+        this.renderHoverDiffMarks(this.leftDiffContent, currentOriginal, true);
+      }
+      if (this.rightDiffContent) {
+        this.renderCompleteDiff(this.rightDiffContent, currentOriginal, currentModified);
+      }
+    } else if (this.rightHoverState === 'hovered') {
+      if (this.rightDiffContent) {
+        this.renderHoverDiffMarks(this.rightDiffContent, currentModified, false);
+      }
+      if (this.leftDiffContent) {
+        this.renderCompleteDiff(this.leftDiffContent, currentOriginal, currentModified);
+      }
+    }
   }
 
   private addToHistory(value: string): void {
@@ -916,12 +1234,6 @@ export class HybridDiffModal extends Modal {
       return;
     }
 
-    if ((event.metaKey || event.ctrlKey) && event.key === "/") {
-      event.preventDefault();
-      this.toggleDiffVisibility();
-      return;
-    }
-
     if (event.key === "Enter" || event.key === "Return" || event.keyCode === 13) {
       if (activeElement === this.finalEditor) {
         return;
@@ -969,22 +1281,6 @@ export class HybridDiffModal extends Modal {
         return;
       }
     }
-
-    if (!this.isDiffVisible) {
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && event.key === ",") {
-      event.preventDefault();
-      this.moveDiffLeft();
-      return;
-    }
-
-    if ((event.metaKey || event.ctrlKey) && event.key === ".") {
-      event.preventDefault();
-      this.moveDiffRight();
-      return;
-    }
   }
 
   onClose(): void {
@@ -1018,91 +1314,14 @@ export class HybridDiffModal extends Modal {
       clearTimeout(this.copyFlashTimer);
       this.copyFlashTimer = null;
     }
+
+    // Clean up diff overlay references
+    this.leftDiffOverlay = null;
+    this.rightDiffOverlay = null;
+    this.leftDiffContent = null;
+    this.rightDiffContent = null;
+
     this.contentEl.empty();
-  }
-
-  private createDiffOverlay(container: HTMLElement): void {
-    this.diffOverlay = container.createDiv({ cls: "diff-overlay" });
-    this.diffOverlay.style.position = "absolute";
-    this.diffOverlay.style.top = "0";
-    this.diffOverlay.style.left = "0";
-    this.diffOverlay.style.width = "100%";
-    this.diffOverlay.style.height = "100%";
-    this.diffOverlay.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
-    this.diffOverlay.style.zIndex = "10";
-    this.diffOverlay.style.display = "block";
-    this.diffOverlay.style.borderRadius = "4px";
-    this.diffOverlay.style.padding = "8px";
-    this.diffOverlay.style.boxSizing = "border-box";
-    this.diffOverlay.style.overflow = "auto";
-    this.diffOverlay.style.cursor = "pointer";
-
-    this.diffOverlay.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.toggleDiffVisibility();
-    });
-
-    const diffContent = this.diffOverlay.createDiv({ cls: "diff-content" });
-    diffContent.style.display = "flex";
-    diffContent.style.flexDirection = "column";
-    diffContent.style.height = "100%";
-    diffContent.style.gap = "4px";
-
-    const diffHeader = diffContent.createDiv({ cls: "diff-header" });
-    diffHeader.style.display = "flex";
-    diffHeader.style.justifyContent = "space-between";
-    diffHeader.style.alignItems = "center";
-    diffHeader.style.marginBottom = "4px";
-
-    const unifiedDiffPanel = diffContent.createDiv({ cls: "unified-diff-panel" });
-    unifiedDiffPanel.style.flex = "1";
-    unifiedDiffPanel.style.border = "1px solid #ddd";
-    unifiedDiffPanel.style.borderRadius = "4px";
-    unifiedDiffPanel.style.overflow = "auto";
-    this.diffScrollContainer = unifiedDiffPanel;
-
-    const unifiedDiffContent = unifiedDiffPanel.createDiv({ cls: "unified-diff-content" });
-    unifiedDiffContent.style.padding = "12px";
-    this.createUnifiedDiffContent(unifiedDiffContent);
-
-    const hint = diffContent.createDiv({ cls: "diff-hint" });
-    hint.style.fontSize = `${this.fontSize - 1}px`;
-    hint.style.color = "#666";
-    hint.style.textAlign = "center";
-    hint.style.marginTop = "8px";
-  }
-
-  private createUnifiedDiffContent(container: HTMLElement): void {
-    const currentOriginalText = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModifiedText = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    const diffResult = diffChars(currentOriginalText, currentModifiedText);
-
-    const diffContainer = container.createDiv();
-    this.diffContainer = diffContainer;
-    diffContainer.style.fontFamily = "monospace";
-    diffContainer.style.fontSize = `${this.fontSize}px`;
-    diffContainer.style.lineHeight = "1.5";
-    diffContainer.style.whiteSpace = "pre-wrap";
-    diffContainer.style.wordWrap = "break-word";
-
-    diffResult.forEach((part) => {
-      const span = diffContainer.createSpan();
-      span.textContent = part.value;
-
-      if (part.removed) {
-        span.style.backgroundColor = "#ffebee";
-        span.style.color = "#d32f2f";
-        span.style.textDecoration = "line-through";
-        span.style.textDecorationColor = "#d32f2f";
-        span.style.textDecorationThickness = "2px";
-      } else if (part.added) {
-        span.style.backgroundColor = "#e8f5e8";
-        span.style.color = "#2e7d32";
-      } else {
-        span.style.color = "#333";
-      }
-    });
   }
 
   private updateFontSize(newSize: number): void {
@@ -1120,17 +1339,20 @@ export class HybridDiffModal extends Modal {
     this.syncFinalEditorMirrorStyles();
     this.syncFinalEditorMirror();
 
-    if (this.diffContainer) {
-      this.diffContainer.style.fontSize = `${newSize}px`;
+    // Update overlay font sizes
+    if (this.leftDiffContent) {
+      this.leftDiffContent.style.fontSize = `${newSize}px`;
+    }
+    if (this.rightDiffContent) {
+      this.rightDiffContent.style.fontSize = `${newSize}px`;
     }
 
     if (this.fontDisplayEl) {
       this.fontDisplayEl.textContent = `${newSize}px`;
     }
 
-    if (this.isDiffVisible) {
-      this.updateDiffView();
-    }
+    // Re-render diff views with new font size
+    this.updateAllDiffViews();
   }
 
   private toggleEditMode(): void {
@@ -1159,20 +1381,6 @@ export class HybridDiffModal extends Modal {
         : this.plugin.t("modal.notice.readOnly")
     );
 
-    this.updateDiffView();
-  }
-
-  private updateDiffView(): void {
-    if (!this.isDiffVisible) {
-      return;
-    }
-
-    const originalText = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const modifiedText = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    this.originalText = originalText;
-    this.modifiedText = modifiedText;
-
-    this.updatePanelContents();
+    this.updateAllDiffViews();
   }
 }

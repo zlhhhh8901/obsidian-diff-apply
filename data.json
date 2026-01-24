@@ -1,6 +1,6 @@
 {
   "fontSize": 14,
-  "defaultDiffPosition": "center",
   "smartDblClickInsertNewlines": true,
-  "language": "zh"
+  "language": "zh",
+  "defaultDiffPosition": "center"
 }

@@ -56,3 +56,92 @@
   left: 0;
   border-left: 1px solid var(--text-normal);
 }
+
+/* Inline diff overlay container */
+.diff-inline-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* When showing complete diff, allow scrolling */
+.diff-inline-overlay.scrollable {
+  overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: auto;
+}
+
+.diff-inline-overlay.scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.diff-inline-overlay.scrollable::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.diff-inline-overlay.scrollable::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.diff-inline-overlay.scrollable::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Scrollable content area */
+.diff-inline-content {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  box-sizing: border-box;
+  padding: 8px;
+  font-family: monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  pointer-events: none;
+}
+
+/* Default state - semi-transparent backgrounds */
+.diff-deleted-default {
+  background-color: rgba(255, 0, 0, 0.15);
+}
+
+.diff-added-default {
+  background-color: rgba(0, 255, 0, 0.15);
+}
+
+/* Hover state - thin underlines */
+.diff-deleted-hover {
+  border-bottom: 2px solid #d32f2f;
+}
+
+.diff-added-hover {
+  border-bottom: 2px solid #2e7d32;
+}
+
+/* Complete diff - full styling */
+.diff-deleted-complete {
+  background-color: #ffebee;
+  color: #d32f2f;
+  text-decoration: line-through;
+  text-decoration-color: #d32f2f;
+  text-decoration-thickness: 2px;
+}
+
+.diff-added-complete {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+}
+
+/* Textarea transparency when diff is active */
+.hybrid-panel textarea.diff-active {
+  background-color: transparent;
+  position: relative;
+  z-index: 1;
+}

@@ -1,5 +1,5 @@
 import { getLanguage, moment } from "obsidian";
-import type { DiffApplyLanguage, DiffViewPosition } from "./types";
+import type { DiffApplyLanguage } from "./types";
 
 const en = {
   "command.hybrid.name": "Hybrid edit selection",
@@ -9,7 +9,7 @@ const en = {
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
 
   "modal.hint":
-    "Left: original, right: modified. Press Enter to copy selection to the middle editor. Use Cmd+, / Cmd+. to move diff view, Cmd+/ to toggle visibility. Cmd+Z to undo.",
+    "Left: original, right: modified. Press Enter to copy selection to the middle editor. Hover over left/right panels to see detailed diff. Cmd+Z to undo.",
   "modal.header.original": "Original",
   "modal.header.editor": "Editor",
   "modal.header.modified": "Modified",
@@ -36,20 +36,11 @@ const en = {
   "settings.fontSize.name": "Font size",
   "settings.fontSize.desc": "Set the editor font size (px).",
 
-  "settings.defaultDiffPosition.name": "Default diff view position",
-  "settings.defaultDiffPosition.desc": "Choose the default position when opening the diff view.",
-  "settings.defaultDiffPosition.option.left": "Left",
-  "settings.defaultDiffPosition.option.center": "Center",
-  "settings.defaultDiffPosition.option.right": "Right",
-
   "settings.smartDblClickInsertNewlines.name": "Double-click copy: smart newlines",
   "settings.smartDblClickInsertNewlines.desc":
     "When double-clicking a line to copy into the editor in Read Only mode: if the source previous line is blank (or whitespace), insert at least 2 newlines before content; otherwise at least 1. Only applies when the editor is non-empty and the cursor is not inside a line.",
 
   "settings.shortcuts.title": "Shortcuts",
-  "settings.shortcuts.moveLeft": "Cmd/Ctrl + , : move diff view left",
-  "settings.shortcuts.moveRight": "Cmd/Ctrl + . : move diff view right",
-  "settings.shortcuts.toggleDiff": "Cmd/Ctrl + / : toggle diff view show/hide",
   "settings.shortcuts.enter": "Enter : copy selection to editor",
   "settings.shortcuts.dblClick": "Double-click any non-empty line in read-only panel: copy line to editor",
   "settings.shortcuts.undo": "Cmd/Ctrl + Z : undo",
@@ -63,7 +54,7 @@ const zh: Record<keyof typeof en, string> = {
   "notice.clipboardReadFailed": "无法读取剪贴板内容，可能是权限问题。",
 
   "modal.hint":
-    "左：原文，右：修改版。按 Enter 将选中文本复制到中间编辑器。Cmd+, / Cmd+. 移动差异视图，Cmd+/ 显示/隐藏，Cmd+Z 撤销。",
+    "左：原文，右：修改版。按 Enter 将选中文本复制到中间编辑器。鼠标悬停在左/右面板上可查看详细差异。Cmd+Z 撤销。",
   "modal.header.original": "原文",
   "modal.header.editor": "编辑器",
   "modal.header.modified": "修改版",
@@ -90,20 +81,11 @@ const zh: Record<keyof typeof en, string> = {
   "settings.fontSize.name": "字体大小",
   "settings.fontSize.desc": "设置编辑器中的字体大小（像素）",
 
-  "settings.defaultDiffPosition.name": "默认差异视图位置",
-  "settings.defaultDiffPosition.desc": "设置打开差异视图时的默认显示位置",
-  "settings.defaultDiffPosition.option.left": "左侧",
-  "settings.defaultDiffPosition.option.center": "中间",
-  "settings.defaultDiffPosition.option.right": "右侧",
-
   "settings.smartDblClickInsertNewlines.name": "双击行复制：智能补换行",
   "settings.smartDblClickInsertNewlines.desc":
     "Read Only 下双击复制行到 Editor 时：如果源文本上一行为空（或仅空白）则在插入内容前补到至少 2 个换行；否则补到至少 1 个。仅在 Editor 非空、且光标不在行内时生效。",
 
   "settings.shortcuts.title": "快捷键说明",
-  "settings.shortcuts.moveLeft": "Cmd/Ctrl + , : 差异视图位置左移",
-  "settings.shortcuts.moveRight": "Cmd/Ctrl + . : 差异视图位置右移",
-  "settings.shortcuts.toggleDiff": "Cmd/Ctrl + / : 切换差异视图显示/隐藏",
   "settings.shortcuts.enter": "Enter : 复制选中文本到编辑器",
   "settings.shortcuts.dblClick": "双击只读栏任意非空行：复制该行到编辑器",
   "settings.shortcuts.undo": "Cmd/Ctrl + Z : 撤销编辑",
@@ -135,15 +117,4 @@ export function t(key: I18nKey, language: DiffApplyLanguage | undefined): string
   const locale = resolveLocale(language);
   const dict = locale === "zh" ? zh : en;
   return dict[key] ?? en[key] ?? key;
-}
-
-export function tDiffPosition(pos: DiffViewPosition, language: DiffApplyLanguage | undefined): string {
-  switch (pos) {
-    case "left":
-      return t("settings.defaultDiffPosition.option.left", language);
-    case "center":
-      return t("settings.defaultDiffPosition.option.center", language);
-    case "right":
-      return t("settings.defaultDiffPosition.option.right", language);
-  }
 }

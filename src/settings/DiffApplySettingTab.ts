@@ -46,24 +46,6 @@ export class DiffApplySettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName(this.plugin.t("settings.defaultDiffPosition.name"))
-      .setDesc(this.plugin.t("settings.defaultDiffPosition.desc"))
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("left", this.plugin.t("settings.defaultDiffPosition.option.left"))
-          .addOption("center", this.plugin.t("settings.defaultDiffPosition.option.center"))
-          .addOption("right", this.plugin.t("settings.defaultDiffPosition.option.right"))
-          .setValue(this.plugin.settings.defaultDiffPosition)
-          .onChange(async (value) => {
-            this.plugin.settings.defaultDiffPosition = value as
-              | "left"
-              | "center"
-              | "right";
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
       .setName(this.plugin.t("settings.smartDblClickInsertNewlines.name"))
       .setDesc(this.plugin.t("settings.smartDblClickInsertNewlines.desc"))
       .addToggle((toggle) =>
@@ -77,9 +59,6 @@ export class DiffApplySettingTab extends PluginSettingTab {
 
     containerEl.createEl("h3", { text: this.plugin.t("settings.shortcuts.title") });
     const shortcutList = containerEl.createEl("ul");
-    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.moveLeft") });
-    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.moveRight") });
-    shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.toggleDiff") });
     shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.enter") });
     shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.dblClick") });
     shortcutList.createEl("li", { text: this.plugin.t("settings.shortcuts.undo") });

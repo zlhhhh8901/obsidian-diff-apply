@@ -72,7 +72,6 @@ export default class DiffApplyPlugin extends Plugin {
         editor.replaceRange(finalText, from, to);
       },
       fontSize: this.settings.fontSize,
-      defaultDiffPosition: this.settings.defaultDiffPosition,
       plugin: this,
     });
 
