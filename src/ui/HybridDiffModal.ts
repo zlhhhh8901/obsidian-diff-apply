@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal, Notice, setIcon } from "obsidian";
 import { diffArrays } from "diff";
 import type DiffApplyPlugin from "../main";
 import type { DiffGranularityMode } from "../main";
@@ -61,7 +61,8 @@ export class HybridDiffModal extends Modal {
 
   // Edit mode state
   private isEditModeEnabled = false;
-  private toggleEditModeBtn: HTMLButtonElement | null = null;
+  private toggleEditModeWrapper: HTMLDivElement | null = null;
+  private toggleEditModeLabelEl: HTMLSpanElement | null = null;
   private boundHandleKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private fontDisplayEl: HTMLSpanElement | null = null;
   private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
@@ -89,13 +90,20 @@ export class HybridDiffModal extends Modal {
     this.modifiedText = opts.modifiedText;
     this.onApply = opts.onApply;
     this.fontSize = opts.fontSize || 14;
-    this.diffGranularity = opts.diffGranularity ?? "auto";
+    this.diffGranularity = opts.diffGranularity ?? "word";
     this.plugin = opts.plugin;
   }
 
   onOpen(): void {
-    this.titleEl.setText("Diff Apply");
+    this.titleEl.empty();
+    const header = this.titleEl.createDiv({ cls: "merge-header" });
+    const brand = header.createDiv({ cls: "brand" });
+    const brandIcon = brand.createSpan({ cls: "brand-icon", attr: { "aria-hidden": "true" } });
+    setIcon(brandIcon, "git-merge");
+    brand.createEl("span", { text: "Merge Conflict Resolver" });
+
     this.modalEl.addClass("hybrid-diff-modal");
+    this.modalEl.addClass("merge-conflict-view");
     this.modalEl.style.setProperty("--hybrid-font-size", `${this.fontSize}px`);
     this.applyDiffThemeSettings();
 
@@ -526,21 +534,7 @@ export class HybridDiffModal extends Modal {
       }
 
       const wordSeg = new SegmenterCtor(undefined, { granularity: "word" });
-      const wordTokens = Array.from(wordSeg.segment(text), (s) => s.segment);
-
-      if (this.diffGranularity === "word") {
-        return wordTokens;
-      }
-
-      // auto: prefer word-level, but if it collapses almost everything into a single token,
-      // fall back to grapheme to preserve some usable detail (e.g. in scripts without spaces).
-      const nonWhitespaceTokens = wordTokens.filter((t) => t.trim().length > 0);
-      if (text.trim().length > 0 && nonWhitespaceTokens.length <= 1) {
-        const seg = new SegmenterCtor(undefined, { granularity: "grapheme" });
-        return Array.from(seg.segment(text), (s) => s.segment);
-      }
-
-      return wordTokens;
+      return Array.from(wordSeg.segment(text), (s) => s.segment);
     }
 
     if (this.diffGranularity === "char") {
@@ -953,44 +947,29 @@ export class HybridDiffModal extends Modal {
   }
 
   private addHybridActions(container: HTMLElement): void {
-    const actionsContainer = container.createDiv({ cls: "hybrid-actions" });
+    const footer = container.createEl("footer");
 
-    const leftGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-left" });
-    const centerGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-center" });
-    const rightGroup = actionsContainer.createDiv({ cls: "hybrid-actions-group hybrid-actions-right" });
+    const leftSection = footer.createDiv({ cls: "footer-section" });
+    const rightSection = footer.createDiv({ cls: "footer-section" });
 
-    this.toggleEditModeBtn = leftGroup.createEl("button", {
-      text: this.plugin.t("modal.toggle.editMode"),
-      cls: "hybrid-toggle-btn",
+    const toggleWrapper = leftSection.createDiv({
+      cls: "toggle-wrapper",
+      title: this.plugin.t("modal.toggle.editMode"),
     });
-    this.toggleEditModeBtn.setAttribute("aria-pressed", "false");
+    this.toggleEditModeWrapper = toggleWrapper;
+    toggleWrapper.setAttribute("role", "switch");
+    toggleWrapper.setAttribute("tabindex", "0");
+    toggleWrapper.createDiv({ cls: "toggle-switch" });
+    this.toggleEditModeLabelEl = toggleWrapper.createEl("span", { text: "" });
+    this.syncEditModeToggleUI();
 
-    const clearBtn = leftGroup.createEl("button", {
-      text: this.plugin.t("modal.action.clear"),
-      cls: "hybrid-clear-btn",
-    });
+    leftSection.createDiv({ cls: "divider" });
 
-    const cancelBtn = rightGroup.createEl("button", {
-      text: this.plugin.t("modal.action.cancel"),
-      cls: "hybrid-cancel-btn",
-    });
-
-    const applyBtn = rightGroup.createEl("button", {
-      text: this.plugin.t("modal.action.apply"),
-      cls: "mod-cta hybrid-apply-btn",
-    });
-
-    const diffGranularityContainer = centerGroup.createDiv({ cls: "hybrid-diff-granularity" });
-    diffGranularityContainer.createEl("span", {
-      text: this.plugin.t("modal.diffGranularity.label"),
-      cls: "hybrid-diff-granularity-label",
-    });
-
-    const segment = diffGranularityContainer.createDiv({ cls: "hybrid-segment" });
+    const segment = leftSection.createDiv({ cls: "segmented-control" });
     const createGranularityBtn = (mode: DiffGranularityMode, labelKey: Parameters<DiffApplyPlugin["t"]>[0]) => {
       const btn = segment.createEl("button", {
         text: this.plugin.t(labelKey),
-        cls: "hybrid-segment-btn",
+        cls: "segment-btn",
       });
       btn.setAttribute("type", "button");
       btn.setAttribute("aria-pressed", "false");
@@ -999,33 +978,59 @@ export class HybridDiffModal extends Modal {
       this.diffGranularityBtnEls[mode] = btn;
     };
 
-    createGranularityBtn("auto", "modal.diffGranularity.auto");
     createGranularityBtn("word", "modal.diffGranularity.word");
     createGranularityBtn("char", "modal.diffGranularity.char");
     this.updateDiffGranularityUI();
 
-    const fontControlsContainer = centerGroup.createDiv({ cls: "hybrid-font-controls" });
+    leftSection.createDiv({ cls: "divider" });
 
-    const fontLabel = fontControlsContainer.createEl("span", {
-      text: this.plugin.t("modal.fontSize.label"),
-      cls: "hybrid-font-label",
-    });
-
-    const decreaseBtn = fontControlsContainer.createEl("button", { text: "-", cls: "hybrid-font-btn" });
+    const fontControlsContainer = leftSection.createDiv({ cls: "hybrid-font-controls" });
+    const decreaseBtn = fontControlsContainer.createEl("button", { cls: "btn btn-ghost hybrid-font-btn" });
+    setIcon(decreaseBtn, "minus");
     decreaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.decreaseAriaLabel"));
     decreaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.decreaseAriaLabel"));
 
     this.fontDisplayEl = fontControlsContainer.createEl("span", {
-      text: `${this.fontSize}px`,
+      text: "A",
       cls: "hybrid-font-display",
     });
+    this.fontDisplayEl.style.fontSize = `${this.fontSize}px`;
+    this.fontDisplayEl.setAttribute("title", `${this.fontSize}px`);
 
-    const increaseBtn = fontControlsContainer.createEl("button", { text: "+", cls: "hybrid-font-btn" });
+    const increaseBtn = fontControlsContainer.createEl("button", { cls: "btn btn-ghost hybrid-font-btn" });
+    setIcon(increaseBtn, "plus");
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
 
-    this.toggleEditModeBtn.addEventListener("click", () => {
-      this.toggleEditMode();
+    const clearBtn = rightSection.createEl("button", {
+      cls: "btn btn-ghost hybrid-clear-btn",
+    });
+    clearBtn.setAttribute("type", "button");
+    clearBtn.textContent = this.plugin.t("modal.action.clear");
+
+    rightSection.createDiv({ cls: "divider" });
+
+    const cancelBtn = rightSection.createEl("button", {
+      text: this.plugin.t("modal.action.cancel"),
+      cls: "btn btn-secondary hybrid-cancel-btn",
+    });
+    cancelBtn.setAttribute("type", "button");
+
+    const applyBtn = rightSection.createEl("button", {
+      cls: "btn btn-primary hybrid-apply-btn",
+    });
+    applyBtn.setAttribute("type", "button");
+    const applyIcon = applyBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
+    setIcon(applyIcon, "check");
+    applyBtn.appendText(this.plugin.t("modal.action.apply"));
+
+    const handleToggleClick = () => this.setEditModeEnabled(!this.isEditModeEnabled);
+    toggleWrapper.addEventListener("click", handleToggleClick);
+    toggleWrapper.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+        event.preventDefault();
+        handleToggleClick();
+      }
     });
 
     clearBtn.addEventListener("click", () => {
@@ -1050,23 +1055,17 @@ export class HybridDiffModal extends Modal {
 
     decreaseBtn.addEventListener("click", () => {
       const newSize = Math.max(10, this.fontSize - 1);
-      if (this.fontDisplayEl) {
-        this.fontDisplayEl.textContent = `${newSize}px`;
-      }
       this.updateFontSize(newSize);
     });
 
     increaseBtn.addEventListener("click", () => {
       const newSize = Math.min(24, this.fontSize + 1);
-      if (this.fontDisplayEl) {
-        this.fontDisplayEl.textContent = `${newSize}px`;
-      }
       this.updateFontSize(newSize);
     });
   }
 
   private updateDiffGranularityUI(): void {
-    const modes: DiffGranularityMode[] = ["auto", "word", "char"];
+    const modes: DiffGranularityMode[] = ["word", "char"];
     for (const mode of modes) {
       const btn = this.diffGranularityBtnEls[mode];
       if (!btn) {
@@ -1311,7 +1310,8 @@ export class HybridDiffModal extends Modal {
     this.syncFinalEditorMirror();
 
     if (this.fontDisplayEl) {
-      this.fontDisplayEl.textContent = `${newSize}px`;
+      this.fontDisplayEl.style.fontSize = `${newSize}px`;
+      this.fontDisplayEl.setAttribute("title", `${newSize}px`);
     }
 
     this.plugin.ui.fontSize = newSize;
@@ -1321,18 +1321,24 @@ export class HybridDiffModal extends Modal {
     this.updateAllDiffViews();
   }
 
-  private toggleEditMode(): void {
-    this.isEditModeEnabled = !this.isEditModeEnabled;
-
-    if (this.toggleEditModeBtn) {
-      if (this.isEditModeEnabled) {
-        this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.readOnly");
-      } else {
-        this.toggleEditModeBtn.textContent = this.plugin.t("modal.toggle.editMode");
-      }
-      this.toggleEditModeBtn.setAttribute("aria-pressed", this.isEditModeEnabled ? "true" : "false");
-      this.toggleEditModeBtn.classList.toggle("is-active", this.isEditModeEnabled);
+  private syncEditModeToggleUI(): void {
+    if (this.toggleEditModeWrapper) {
+      this.toggleEditModeWrapper.classList.toggle("is-enabled", this.isEditModeEnabled);
+      this.toggleEditModeWrapper.setAttribute("aria-checked", this.isEditModeEnabled ? "true" : "false");
     }
+    if (this.toggleEditModeLabelEl) {
+      this.toggleEditModeLabelEl.textContent = this.plugin.t("modal.toggle.editMode");
+    }
+  }
+
+  private setEditModeEnabled(enabled: boolean): void {
+    if (enabled === this.isEditModeEnabled) {
+      this.syncEditModeToggleUI();
+      return;
+    }
+
+    this.isEditModeEnabled = enabled;
+    this.syncEditModeToggleUI();
     this.modalEl.classList.toggle("is-edit-mode", this.isEditModeEnabled);
 
     if (this.originalEditor) {
@@ -1349,5 +1355,9 @@ export class HybridDiffModal extends Modal {
     );
 
     this.updateAllDiffViews();
+  }
+
+  private toggleEditMode(): void {
+    this.setEditModeEnabled(!this.isEditModeEnabled);
   }
 }

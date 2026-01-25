@@ -3,7 +3,7 @@ import type { I18nKey } from "./i18n";
 import { t as tI18n } from "./i18n";
 import { HybridDiffModal } from "./ui/HybridDiffModal";
 
-export type DiffGranularityMode = "auto" | "word" | "char";
+export type DiffGranularityMode = "word" | "char";
 
 type PluginData = Record<string, unknown>;
 
@@ -14,7 +14,7 @@ export interface DiffApplyPluginUiState {
 
 const DEFAULT_UI_STATE: DiffApplyPluginUiState = {
   fontSize: 14,
-  diffGranularity: "auto",
+  diffGranularity: "word",
 };
 
 export default class DiffApplyPlugin extends Plugin {
@@ -50,14 +50,13 @@ export default class DiffApplyPlugin extends Plugin {
     );
   }
 
-  onunload(): void {}
-
   private async loadUiState(): Promise<void> {
     const data = (await this.loadData()) as PluginData | null;
     this.pluginData = data ?? {};
 
     const ui = (this.pluginData.ui ?? {}) as Partial<DiffApplyPluginUiState>;
-    this.ui = { ...DEFAULT_UI_STATE, ...ui };
+    const normalizedGranularity = ui.diffGranularity === "char" ? "char" : "word";
+    this.ui = { ...DEFAULT_UI_STATE, ...ui, diffGranularity: normalizedGranularity };
   }
 
   async saveUiState(): Promise<void> {
