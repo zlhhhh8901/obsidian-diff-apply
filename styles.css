@@ -337,6 +337,27 @@
   color: var(--text-normal);
 }
 
+/* Edit mode: show plain text in side panels with editor-like background */
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.original .panel-content,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.modified .panel-content {
+  background: var(--background-modifier-form-field, var(--hybrid-bg));
+}
+
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.original .hybrid-editor--readonly,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.modified .hybrid-editor--readonly {
+  background: var(--background-modifier-form-field, var(--hybrid-bg));
+  color: var(--text-normal);
+}
+
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.original textarea.diff-active,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.modified textarea.diff-active {
+  background-color: var(--background-modifier-form-field, var(--hybrid-bg));
+}
+
+.hybrid-diff-modal.is-edit-mode .diff-inline-overlay {
+  display: none;
+}
+
 .merge-conflict-view footer {
   background-color: var(--bg-secondary);
   border: none;

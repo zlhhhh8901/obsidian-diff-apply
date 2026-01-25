@@ -697,6 +697,9 @@ export class HybridDiffModal extends Modal {
   }
 
   private handleLeftPanelEnter(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
     this.leftHoverState = 'hovered';
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
@@ -735,6 +738,9 @@ export class HybridDiffModal extends Modal {
   }
 
   private handleLeftPanelLeave(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
     this.leftHoverState = 'default';
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
@@ -768,6 +774,9 @@ export class HybridDiffModal extends Modal {
   }
 
   private handleRightPanelEnter(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
     this.rightHoverState = 'hovered';
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
@@ -806,6 +815,9 @@ export class HybridDiffModal extends Modal {
   }
 
   private handleRightPanelLeave(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
     this.rightHoverState = 'default';
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
@@ -906,6 +918,9 @@ export class HybridDiffModal extends Modal {
   }
 
   private updateAllDiffViews(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
 
@@ -1346,6 +1361,49 @@ export class HybridDiffModal extends Modal {
     }
     if (this.modifiedEditor) {
       this.modifiedEditor.readOnly = !this.isEditModeEnabled;
+    }
+
+    if (this.isEditModeEnabled) {
+      this.leftHoverState = 'default';
+      this.rightHoverState = 'default';
+
+      if (this.leftDiffOverlay) {
+        this.leftDiffOverlay.removeClass("scrollable");
+      }
+      if (this.rightDiffOverlay) {
+        this.rightDiffOverlay.removeClass("scrollable");
+      }
+
+      if (this.leftDiffContent && this.originalEditor) {
+        this.leftDiffContent.style.transform = `translate(-${this.originalEditor.scrollLeft}px, -${this.originalEditor.scrollTop}px)`;
+      }
+      if (this.rightDiffContent && this.modifiedEditor) {
+        this.rightDiffContent.style.transform = `translate(-${this.modifiedEditor.scrollLeft}px, -${this.modifiedEditor.scrollTop}px)`;
+      }
+
+      if (this.originalEditor) {
+        this.restoreScrollableSpace(this.originalEditor);
+      }
+      if (this.modifiedEditor) {
+        this.restoreScrollableSpace(this.modifiedEditor);
+      }
+
+      if (this.leftTextareaScrollListener && this.originalEditor) {
+        this.originalEditor.removeEventListener('scroll', this.leftTextareaScrollListener);
+        this.leftTextareaScrollListener = null;
+      }
+      if (this.rightOverlayScrollListener && this.rightDiffOverlay) {
+        this.rightDiffOverlay.removeEventListener('scroll', this.rightOverlayScrollListener);
+        this.rightOverlayScrollListener = null;
+      }
+      if (this.rightTextareaScrollListener && this.modifiedEditor) {
+        this.modifiedEditor.removeEventListener('scroll', this.rightTextareaScrollListener);
+        this.rightTextareaScrollListener = null;
+      }
+      if (this.leftOverlayScrollListener && this.leftDiffOverlay) {
+        this.leftDiffOverlay.removeEventListener('scroll', this.leftOverlayScrollListener);
+        this.leftOverlayScrollListener = null;
+      }
     }
 
     new Notice(
