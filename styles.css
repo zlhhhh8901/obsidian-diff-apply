@@ -55,6 +55,20 @@
   --hybrid-diff-deleted-bg: var(--c-del-bg);
   --hybrid-diff-added-bg-strong: var(--c-add-bg-strong);
   --hybrid-diff-deleted-bg-strong: var(--c-del-bg-strong);
+
+  /* Underline markers: visible but don't collide with glyph descenders. */
+  --hybrid-diff-underline-thickness: 1px;
+  /* Space reserved under glyphs so the underline doesn't touch descenders. */
+  --hybrid-diff-underline-pad: 0.22em;
+  --hybrid-diff-underline-thickness-hover: 1.6px;
+
+  /* Strikethrough thickness for "complete diff" deleted segments. */
+  --hybrid-diff-strikethrough-thickness: 1px;
+
+  /* Dotted underline pattern (tuned so 1 CJK glyph shows 2–3 dots). */
+  --hybrid-diff-underline-dot-radius: 0.045em;
+  --hybrid-diff-underline-dot-radius-hover: 0.06em;
+  --hybrid-diff-underline-dot-step: 0.33em;
 }
 
 .hybrid-diff-container {
@@ -360,11 +374,31 @@
 
 /* Hover state - thin underlines */
 .diff-deleted-hover {
-  border-bottom: 1.8px solid var(--hybrid-diff-deleted);
+  text-decoration: none;
+  padding-bottom: var(--hybrid-diff-underline-pad);
+  background-image: radial-gradient(
+    circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius-hover)),
+    var(--hybrid-diff-deleted) 0 var(--hybrid-diff-underline-dot-radius-hover),
+    transparent calc(var(--hybrid-diff-underline-dot-radius-hover) + 0.05em)
+  );
+  background-repeat: repeat-x;
+  background-size: var(--hybrid-diff-underline-dot-step)
+    calc(var(--hybrid-diff-underline-pad) + var(--hybrid-diff-underline-dot-radius-hover) * 2 + 0.1em);
+  background-position: left bottom;
 }
 
 .diff-added-hover {
-  border-bottom: 1.8px solid var(--hybrid-diff-added);
+  text-decoration: none;
+  padding-bottom: var(--hybrid-diff-underline-pad);
+  background-image: radial-gradient(
+    circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius-hover)),
+    var(--hybrid-diff-added) 0 var(--hybrid-diff-underline-dot-radius-hover),
+    transparent calc(var(--hybrid-diff-underline-dot-radius-hover) + 0.05em)
+  );
+  background-repeat: repeat-x;
+  background-size: var(--hybrid-diff-underline-dot-step)
+    calc(var(--hybrid-diff-underline-pad) + var(--hybrid-diff-underline-dot-radius-hover) * 2 + 0.1em);
+  background-position: left bottom;
 }
 
 /* Complete diff - full styling */
@@ -373,7 +407,7 @@
   color: var(--text-muted);
   text-decoration: line-through;
   text-decoration-color: var(--text-muted);
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: var(--hybrid-diff-strikethrough-thickness, 1px);
 }
 
 .diff-added-complete {
@@ -395,13 +429,33 @@
 .hybrid-diff-modal[data-default-style="underline"] .diff-deleted-default {
   background-color: transparent;
   color: inherit;
-  border-bottom: 2px solid var(--hybrid-diff-deleted);
+  text-decoration: none;
+  padding-bottom: var(--hybrid-diff-underline-pad);
+  background-image: radial-gradient(
+    circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius)),
+    var(--hybrid-diff-deleted) 0 var(--hybrid-diff-underline-dot-radius),
+    transparent calc(var(--hybrid-diff-underline-dot-radius) + 0.05em)
+  );
+  background-repeat: repeat-x;
+  background-size: var(--hybrid-diff-underline-dot-step)
+    calc(var(--hybrid-diff-underline-pad) + var(--hybrid-diff-underline-dot-radius) * 2 + 0.1em);
+  background-position: left bottom;
 }
 
 .hybrid-diff-modal[data-default-style="underline"] .diff-added-default {
   background-color: transparent;
   color: inherit;
-  border-bottom: 2px solid var(--hybrid-diff-added);
+  text-decoration: none;
+  padding-bottom: var(--hybrid-diff-underline-pad);
+  background-image: radial-gradient(
+    circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius)),
+    var(--hybrid-diff-added) 0 var(--hybrid-diff-underline-dot-radius),
+    transparent calc(var(--hybrid-diff-underline-dot-radius) + 0.05em)
+  );
+  background-repeat: repeat-x;
+  background-size: var(--hybrid-diff-underline-dot-step)
+    calc(var(--hybrid-diff-underline-pad) + var(--hybrid-diff-underline-dot-radius) * 2 + 0.1em);
+  background-position: left bottom;
 }
 
 /* Complete style variants */
@@ -427,7 +481,17 @@
 .hybrid-diff-modal[data-complete-style="underline"] .diff-added-complete {
   background-color: var(--hybrid-diff-added-bg);
   color: var(--text-normal);
-  border-bottom: 2px solid var(--text-normal);
+  text-decoration: none;
+  padding-bottom: var(--hybrid-diff-underline-pad);
+  background-image: radial-gradient(
+    circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius)),
+    var(--text-normal) 0 var(--hybrid-diff-underline-dot-radius),
+    transparent calc(var(--hybrid-diff-underline-dot-radius) + 0.05em)
+  );
+  background-repeat: repeat-x;
+  background-size: var(--hybrid-diff-underline-dot-step)
+    calc(var(--hybrid-diff-underline-pad) + var(--hybrid-diff-underline-dot-radius) * 2 + 0.1em);
+  background-position: left bottom;
 }
 
 /* Textarea transparency when diff is active */
