@@ -712,11 +712,6 @@ export class HybridDiffModal extends Modal {
       // Enable scrolling for complete diff view
       this.rightDiffOverlay.addClass("scrollable");
       this.rightDiffContent.style.transform = "none";
-
-      // Ensure textarea has enough scrollable space to match overlay
-      if (this.originalEditor) {
-        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
-      }
     }
 
     // Setup scroll sync: left textarea <-> right overlay
@@ -734,6 +729,15 @@ export class HybridDiffModal extends Modal {
 
       this.originalEditor.addEventListener('scroll', this.leftTextareaScrollListener);
       this.rightDiffOverlay.addEventListener('scroll', this.rightOverlayScrollListener);
+
+      // Wait for DOM to update, then ensure scrollable space and sync initial position
+      requestAnimationFrame(() => {
+        if (this.originalEditor && this.rightDiffOverlay) {
+          this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+          // Sync initial scroll position
+          this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
+        }
+      });
     }
   }
 
@@ -789,11 +793,6 @@ export class HybridDiffModal extends Modal {
       // Enable scrolling for complete diff view
       this.leftDiffOverlay.addClass("scrollable");
       this.leftDiffContent.style.transform = "none";
-
-      // Ensure textarea has enough scrollable space to match overlay
-      if (this.modifiedEditor) {
-        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
-      }
     }
 
     // Setup scroll sync: right textarea <-> left overlay
@@ -811,6 +810,15 @@ export class HybridDiffModal extends Modal {
 
       this.modifiedEditor.addEventListener('scroll', this.rightTextareaScrollListener);
       this.leftDiffOverlay.addEventListener('scroll', this.leftOverlayScrollListener);
+
+      // Wait for DOM to update, then ensure scrollable space and sync initial position
+      requestAnimationFrame(() => {
+        if (this.modifiedEditor && this.leftDiffOverlay) {
+          this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+          // Sync initial scroll position
+          this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
+        }
+      });
     }
   }
 
@@ -874,10 +882,16 @@ export class HybridDiffModal extends Modal {
 
       // Apply percentage to target element
       const targetScrollHeight = targetEl.scrollHeight - targetEl.clientHeight;
-      targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
 
-      // Sync horizontal scroll by pixels (usually not much difference)
+      // Temporarily disable smooth scrolling to prevent async scroll events
+      const originalScrollBehavior = targetEl.style.scrollBehavior;
+      targetEl.style.scrollBehavior = 'auto';
+
+      targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
       targetEl.scrollLeft = sourceEl.scrollLeft;
+
+      // Restore scroll behavior
+      targetEl.style.scrollBehavior = originalScrollBehavior;
     } finally {
       // Use setTimeout to reset flag after current event loop
       setTimeout(() => {
