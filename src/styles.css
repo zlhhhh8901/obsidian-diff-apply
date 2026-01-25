@@ -617,6 +617,13 @@
   border: none;
   box-shadow: none;
   background: transparent;
+  transition: color var(--transition-fast) var(--ease-out),
+    background-color var(--transition-fast) var(--ease-out);
+}
+
+.merge-conflict-view .hybrid-clear-btn.btn-ghost:hover:not(:disabled) {
+  color: var(--danger-color);
+  background-color: var(--diff-remove-subtle);
 }
 
 .merge-conflict-view .hybrid-font-btn.btn-ghost:hover:not(:disabled) {

@@ -1420,12 +1420,6 @@ export class HybridDiffModal extends Modal {
       }
     }
 
-    new Notice(
-      this.isEditModeEnabled
-        ? this.plugin.t("modal.notice.editMode")
-        : this.plugin.t("modal.notice.readOnly")
-    );
-
     this.updateAllDiffViews();
   }
 
