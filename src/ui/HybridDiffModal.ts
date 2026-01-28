@@ -15,6 +15,8 @@ const DEFAULT_DIFF_STYLE = "background";
 const COMPLETE_DIFF_STYLE = "background";
 const SMART_DBLCLICK_INSERT_NEWLINES = true;
 
+type DiffLayer = "default" | "hover" | "complete";
+
 export interface HybridDiffOptions {
   originalText: string;
   modifiedText: string;
@@ -50,8 +52,8 @@ export class HybridDiffModal extends Modal {
   private rightHoverState: 'default' | 'hovered' = 'default';
   private leftDiffOverlay: HTMLDivElement | null = null;
   private rightDiffOverlay: HTMLDivElement | null = null;
-  private leftDiffContent: HTMLDivElement | null = null;
-  private rightDiffContent: HTMLDivElement | null = null;
+  private leftDiffLayers: Partial<Record<DiffLayer, HTMLDivElement>> | null = null;
+  private rightDiffLayers: Partial<Record<DiffLayer, HTMLDivElement>> | null = null;
 
   private copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
   private leftPanel: HTMLDivElement | null = null;
@@ -143,13 +145,15 @@ export class HybridDiffModal extends Modal {
     // Create left diff overlay
     const leftOverlayResult = this.createInlineDiffOverlay(leftContent);
     this.leftDiffOverlay = leftOverlayResult.overlay;
-    this.leftDiffContent = leftOverlayResult.content;
+    this.leftDiffLayers = {
+      default: leftOverlayResult.defaultContent,
+      hover: leftOverlayResult.hoverContent,
+      complete: leftOverlayResult.completeContent,
+    };
 
     // Sync scroll for left overlay
     originalEditor.addEventListener('scroll', () => {
-      if (this.leftDiffContent) {
-        this.leftDiffContent.style.transform = `translate(-${originalEditor.scrollLeft}px, -${originalEditor.scrollTop}px)`;
-      }
+      this.syncOverlayContentTransformToTextarea("left");
     });
 
     this.middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
@@ -176,13 +180,15 @@ export class HybridDiffModal extends Modal {
     // Create right diff overlay
     const rightOverlayResult = this.createInlineDiffOverlay(rightContent);
     this.rightDiffOverlay = rightOverlayResult.overlay;
-    this.rightDiffContent = rightOverlayResult.content;
+    this.rightDiffLayers = {
+      default: rightOverlayResult.defaultContent,
+      hover: rightOverlayResult.hoverContent,
+      complete: rightOverlayResult.completeContent,
+    };
 
     // Sync scroll for right overlay
     modifiedEditor.addEventListener('scroll', () => {
-      if (this.rightDiffContent) {
-        this.rightDiffContent.style.transform = `translate(-${modifiedEditor.scrollLeft}px, -${modifiedEditor.scrollTop}px)`;
-      }
+      this.syncOverlayContentTransformToTextarea("right");
     });
 
     // Treat mouse interaction in side panels as "active" even if focus lands on <body>
@@ -199,13 +205,11 @@ export class HybridDiffModal extends Modal {
     // Setup diff hover listeners
     this.setupDiffHoverListeners();
 
-    // Render initial diff views
-    if (this.leftDiffContent) {
-      this.renderDefaultDiffMarks(this.leftDiffContent, this.originalText, true);
-    }
-    if (this.rightDiffContent) {
-      this.renderDefaultDiffMarks(this.rightDiffContent, this.modifiedText, false);
-    }
+    // Read-only mode: pre-render all diff layers once and cache them.
+    this.rebuildReadOnlyDiffCaches();
+    this.applyReadOnlyInteractionState();
+    this.syncOverlayContentTransformToTextarea("left");
+    this.syncOverlayContentTransformToTextarea("right");
   }
 
   private setupFinalEditorMirror(middleContent: HTMLElement): void {
@@ -508,14 +512,6 @@ export class HybridDiffModal extends Modal {
     return editor;
   }
 
-  private createInlineDiffOverlay(container: HTMLElement): { overlay: HTMLDivElement; content: HTMLDivElement } {
-    const overlay = container.createDiv({ cls: "diff-inline-overlay" });
-
-    const content = overlay.createDiv({ cls: "diff-inline-content" });
-
-    return { overlay, content };
-  }
-
   private tokenizeInlineDiff(text: string): string[] {
     if (text.length === 0) {
       return [];
@@ -701,18 +697,10 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.leftHoverState = 'hovered';
-    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    if (this.leftDiffContent) {
-      this.renderHoverDiffMarks(this.leftDiffContent, currentOriginal, true);
-    }
-    if (this.rightDiffContent && this.rightDiffOverlay) {
-      this.renderCompleteDiff(this.rightDiffContent, currentOriginal, currentModified);
-      // Enable scrolling for complete diff view
-      this.rightDiffOverlay.addClass("scrollable");
-      this.rightDiffContent.style.transform = "none";
-    }
+    this.setOverlayLayer("left", "hover");
+    this.setOverlayLayer("right", "complete");
+    this.setOverlayScrollable("left", false);
+    this.setOverlayScrollable("right", true);
 
     // Setup scroll sync: left textarea <-> right overlay
     if (this.originalEditor && this.rightDiffOverlay) {
@@ -746,20 +734,10 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.leftHoverState = 'default';
-    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    if (this.leftDiffContent) {
-      this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
-    }
-    if (this.rightDiffContent && this.rightDiffOverlay) {
-      this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
-      // Restore scroll sync
-      this.rightDiffOverlay.removeClass("scrollable");
-      if (this.modifiedEditor) {
-        this.rightDiffContent.style.transform = `translate(-${this.modifiedEditor.scrollLeft}px, -${this.modifiedEditor.scrollTop}px)`;
-      }
-    }
+    this.setOverlayLayer("left", "default");
+    this.setOverlayLayer("right", "default");
+    this.setOverlayScrollable("right", false);
+    this.syncOverlayContentTransformToTextarea("right");
 
     // Restore original scrollable space
     if (this.originalEditor) {
@@ -782,18 +760,10 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.rightHoverState = 'hovered';
-    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    if (this.rightDiffContent) {
-      this.renderHoverDiffMarks(this.rightDiffContent, currentModified, false);
-    }
-    if (this.leftDiffContent && this.leftDiffOverlay) {
-      this.renderCompleteDiff(this.leftDiffContent, currentOriginal, currentModified);
-      // Enable scrolling for complete diff view
-      this.leftDiffOverlay.addClass("scrollable");
-      this.leftDiffContent.style.transform = "none";
-    }
+    this.setOverlayLayer("right", "hover");
+    this.setOverlayLayer("left", "complete");
+    this.setOverlayScrollable("right", false);
+    this.setOverlayScrollable("left", true);
 
     // Setup scroll sync: right textarea <-> left overlay
     if (this.modifiedEditor && this.leftDiffOverlay) {
@@ -827,20 +797,10 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.rightHoverState = 'default';
-    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
-
-    if (this.rightDiffContent) {
-      this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
-    }
-    if (this.leftDiffContent && this.leftDiffOverlay) {
-      this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
-      // Restore scroll sync
-      this.leftDiffOverlay.removeClass("scrollable");
-      if (this.originalEditor) {
-        this.leftDiffContent.style.transform = `translate(-${this.originalEditor.scrollLeft}px, -${this.originalEditor.scrollTop}px)`;
-      }
-    }
+    this.setOverlayLayer("right", "default");
+    this.setOverlayLayer("left", "default");
+    this.setOverlayScrollable("left", false);
+    this.syncOverlayContentTransformToTextarea("left");
 
     // Restore original scrollable space
     if (this.modifiedEditor) {
@@ -935,31 +895,21 @@ export class HybridDiffModal extends Modal {
     if (this.isEditModeEnabled) {
       return;
     }
-    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
-    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+    // Rebuild cached layers (granularity changed or exiting edit mode).
+    this.rebuildReadOnlyDiffCaches();
+    this.applyReadOnlyInteractionState();
 
-    if (this.leftHoverState === 'default' && this.rightHoverState === 'default') {
-      if (this.leftDiffContent) {
-        this.renderDefaultDiffMarks(this.leftDiffContent, currentOriginal, true);
+    // If a complete diff overlay is currently active, re-check scroll space and re-sync position.
+    requestAnimationFrame(() => {
+      if (this.leftHoverState === "hovered" && this.originalEditor && this.rightDiffOverlay) {
+        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+        this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
       }
-      if (this.rightDiffContent) {
-        this.renderDefaultDiffMarks(this.rightDiffContent, currentModified, false);
+      if (this.rightHoverState === "hovered" && this.modifiedEditor && this.leftDiffOverlay) {
+        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+        this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
       }
-    } else if (this.leftHoverState === 'hovered') {
-      if (this.leftDiffContent) {
-        this.renderHoverDiffMarks(this.leftDiffContent, currentOriginal, true);
-      }
-      if (this.rightDiffContent) {
-        this.renderCompleteDiff(this.rightDiffContent, currentOriginal, currentModified);
-      }
-    } else if (this.rightHoverState === 'hovered') {
-      if (this.rightDiffContent) {
-        this.renderHoverDiffMarks(this.rightDiffContent, currentModified, false);
-      }
-      if (this.leftDiffContent) {
-        this.renderCompleteDiff(this.leftDiffContent, currentOriginal, currentModified);
-      }
-    }
+    });
   }
 
   private addToHistory(value: string): void {
@@ -1326,8 +1276,8 @@ export class HybridDiffModal extends Modal {
     // Clean up diff overlay references
     this.leftDiffOverlay = null;
     this.rightDiffOverlay = null;
-    this.leftDiffContent = null;
-    this.rightDiffContent = null;
+    this.leftDiffLayers = null;
+    this.rightDiffLayers = null;
 
     this.contentEl.empty();
   }
@@ -1345,9 +1295,21 @@ export class HybridDiffModal extends Modal {
 
     this.plugin.ui.fontSize = newSize;
     void this.plugin.saveUiState();
+    // Font size changes affect layout but not diff computation; keep cached DOM.
+    this.syncOverlayContentTransformToTextarea("left");
+    this.syncOverlayContentTransformToTextarea("right");
 
-    // Re-render diff views with new font size
-    this.updateAllDiffViews();
+    // If a complete diff overlay is currently scrollable, re-check scroll space.
+    requestAnimationFrame(() => {
+      if (this.leftHoverState === "hovered" && this.originalEditor && this.rightDiffOverlay) {
+        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+        this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
+      }
+      if (this.rightHoverState === "hovered" && this.modifiedEditor && this.leftDiffOverlay) {
+        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+        this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
+      }
+    });
   }
 
   private syncEditModeToggleUI(): void {
@@ -1381,19 +1343,10 @@ export class HybridDiffModal extends Modal {
       this.leftHoverState = 'default';
       this.rightHoverState = 'default';
 
-      if (this.leftDiffOverlay) {
-        this.leftDiffOverlay.removeClass("scrollable");
-      }
-      if (this.rightDiffOverlay) {
-        this.rightDiffOverlay.removeClass("scrollable");
-      }
-
-      if (this.leftDiffContent && this.originalEditor) {
-        this.leftDiffContent.style.transform = `translate(-${this.originalEditor.scrollLeft}px, -${this.originalEditor.scrollTop}px)`;
-      }
-      if (this.rightDiffContent && this.modifiedEditor) {
-        this.rightDiffContent.style.transform = `translate(-${this.modifiedEditor.scrollLeft}px, -${this.modifiedEditor.scrollTop}px)`;
-      }
+      this.setOverlayScrollable("left", false);
+      this.setOverlayScrollable("right", false);
+      this.syncOverlayContentTransformToTextarea("left");
+      this.syncOverlayContentTransformToTextarea("right");
 
       if (this.originalEditor) {
         this.restoreScrollableSpace(this.originalEditor);
@@ -1425,5 +1378,205 @@ export class HybridDiffModal extends Modal {
 
   private toggleEditMode(): void {
     this.setEditModeEnabled(!this.isEditModeEnabled);
+  }
+
+  private createInlineDiffOverlay(container: HTMLElement): {
+    overlay: HTMLDivElement;
+    defaultContent: HTMLDivElement;
+    hoverContent: HTMLDivElement;
+    completeContent: HTMLDivElement;
+  } {
+    const overlay = container.createDiv({ cls: "diff-inline-overlay" });
+    overlay.dataset.layered = "true";
+    overlay.dataset.activeLayer = "default";
+
+    const defaultContent = overlay.createDiv({
+      cls: "diff-inline-content",
+      attr: { "data-layer": "default" },
+    });
+    const hoverContent = overlay.createDiv({
+      cls: "diff-inline-content",
+      attr: { "data-layer": "hover" },
+    });
+    const completeContent = overlay.createDiv({
+      cls: "diff-inline-content",
+      attr: { "data-layer": "complete" },
+    });
+
+    // Make the data-layer attribute robust even if Obsidian's helper doesn't set it in some contexts.
+    defaultContent.dataset.layer = "default";
+    hoverContent.dataset.layer = "hover";
+    completeContent.dataset.layer = "complete";
+
+    return { overlay, defaultContent, hoverContent, completeContent };
+  }
+
+  private getOverlay(side: "left" | "right"): HTMLDivElement | null {
+    return side === "left" ? this.leftDiffOverlay : this.rightDiffOverlay;
+  }
+
+  private getOverlayLayers(side: "left" | "right"): Partial<Record<DiffLayer, HTMLDivElement>> | null {
+    return side === "left" ? this.leftDiffLayers : this.rightDiffLayers;
+  }
+
+  private setOverlayLayer(side: "left" | "right", layer: DiffLayer): void {
+    const overlay = this.getOverlay(side);
+    if (!overlay) {
+      return;
+    }
+    overlay.dataset.activeLayer = layer;
+  }
+
+  private setOverlayScrollable(side: "left" | "right", scrollable: boolean): void {
+    const overlay = this.getOverlay(side);
+    if (!overlay) {
+      return;
+    }
+
+    if (scrollable) {
+      overlay.addClass("scrollable");
+      this.setOverlayContentTransform(side, "none");
+      return;
+    }
+
+    overlay.removeClass("scrollable");
+    this.syncOverlayContentTransformToTextarea(side);
+  }
+
+  private setOverlayContentTransform(side: "left" | "right", transform: string): void {
+    const layers = this.getOverlayLayers(side);
+    if (!layers) {
+      return;
+    }
+    const all: Array<HTMLDivElement | undefined> = [layers.default, layers.hover, layers.complete];
+    for (const el of all) {
+      if (el) {
+        el.style.transform = transform;
+      }
+    }
+  }
+
+  private syncOverlayContentTransformToTextarea(side: "left" | "right"): void {
+    const overlay = this.getOverlay(side);
+    if (!overlay || overlay.classList.contains("scrollable")) {
+      return;
+    }
+    const textarea = side === "left" ? this.originalEditor : this.modifiedEditor;
+    if (!textarea) {
+      return;
+    }
+
+    const transform = `translate(-${textarea.scrollLeft}px, -${textarea.scrollTop}px)`;
+    this.setOverlayContentTransform(side, transform);
+  }
+
+  private applyReadOnlyInteractionState(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
+
+    if (this.leftHoverState === "hovered") {
+      this.setOverlayLayer("left", "hover");
+      this.setOverlayLayer("right", "complete");
+      this.setOverlayScrollable("left", false);
+      this.setOverlayScrollable("right", true);
+      return;
+    }
+
+    if (this.rightHoverState === "hovered") {
+      this.setOverlayLayer("right", "hover");
+      this.setOverlayLayer("left", "complete");
+      this.setOverlayScrollable("right", false);
+      this.setOverlayScrollable("left", true);
+      return;
+    }
+
+    this.setOverlayLayer("left", "default");
+    this.setOverlayLayer("right", "default");
+    this.setOverlayScrollable("left", false);
+    this.setOverlayScrollable("right", false);
+  }
+
+  private rebuildReadOnlyDiffCaches(): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
+
+    const leftLayers = this.leftDiffLayers;
+    const rightLayers = this.rightDiffLayers;
+    if (!leftLayers?.default || !leftLayers.hover || !leftLayers.complete) {
+      return;
+    }
+    if (!rightLayers?.default || !rightLayers.hover || !rightLayers.complete) {
+      return;
+    }
+
+    const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
+    const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
+
+    const diffResult = this.diffInlineText(currentOriginal, currentModified);
+
+    // Clear all layers
+    leftLayers.default.textContent = "";
+    leftLayers.hover.textContent = "";
+    leftLayers.complete.textContent = "";
+    rightLayers.default.textContent = "";
+    rightLayers.hover.textContent = "";
+    rightLayers.complete.textContent = "";
+
+    for (const part of diffResult) {
+      // Left default: deletions only
+      if (!part.added) {
+        const span = leftLayers.default.createSpan();
+        span.textContent = part.value;
+        if (part.removed) {
+          span.addClass("diff-deleted-default");
+        }
+      }
+
+      // Right default: additions only
+      if (!part.removed) {
+        const span = rightLayers.default.createSpan();
+        span.textContent = part.value;
+        if (part.added) {
+          span.addClass("diff-added-default");
+        }
+      }
+
+      // Left hover: deletions underline
+      if (!part.added) {
+        const span = leftLayers.hover.createSpan();
+        span.textContent = part.value;
+        if (part.removed) {
+          span.addClass("diff-deleted-hover");
+        }
+      }
+
+      // Right hover: additions underline
+      if (!part.removed) {
+        const span = rightLayers.hover.createSpan();
+        span.textContent = part.value;
+        if (part.added) {
+          span.addClass("diff-added-hover");
+        }
+      }
+
+      // Complete: show everything with add/remove markers
+      const leftCompleteSpan = leftLayers.complete.createSpan();
+      leftCompleteSpan.textContent = part.value;
+      if (part.removed) {
+        leftCompleteSpan.addClass("diff-deleted-complete");
+      } else if (part.added) {
+        leftCompleteSpan.addClass("diff-added-complete");
+      }
+
+      const rightCompleteSpan = rightLayers.complete.createSpan();
+      rightCompleteSpan.textContent = part.value;
+      if (part.removed) {
+        rightCompleteSpan.addClass("diff-deleted-complete");
+      } else if (part.added) {
+        rightCompleteSpan.addClass("diff-added-complete");
+      }
+    }
   }
 }

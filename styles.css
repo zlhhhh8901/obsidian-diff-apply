@@ -826,6 +826,17 @@
   color: var(--text-normal);
 }
 
+/* Layered overlays: only show the active layer (default/hover/complete). */
+.diff-inline-overlay[data-layered] > .diff-inline-content {
+  display: none;
+}
+
+.diff-inline-overlay[data-layered][data-active-layer="default"] > .diff-inline-content[data-layer="default"],
+.diff-inline-overlay[data-layered][data-active-layer="hover"] > .diff-inline-content[data-layer="hover"],
+.diff-inline-overlay[data-layered][data-active-layer="complete"] > .diff-inline-content[data-layer="complete"] {
+  display: block;
+}
+
 /* Default state - semi-transparent backgrounds */
 .diff-deleted-default {
   background-color: var(--hybrid-diff-deleted-bg);
