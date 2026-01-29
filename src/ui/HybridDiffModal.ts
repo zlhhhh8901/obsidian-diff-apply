@@ -71,10 +71,11 @@ export class HybridDiffModal extends Modal {
 
   // Scroll sync state
   private isSyncingScroll = false;
-  private leftTextareaScrollListener: (() => void) | null = null;
-  private rightTextareaScrollListener: (() => void) | null = null;
-  private leftOverlayScrollListener: (() => void) | null = null;
-  private rightOverlayScrollListener: (() => void) | null = null;
+  private leftTextareaScrollListener: ((event: Event) => void) | null = null;
+  private rightTextareaScrollListener: ((event: Event) => void) | null = null;
+  private leftOverlayScrollListener: ((event: Event) => void) | null = null;
+  private rightOverlayScrollListener: ((event: Event) => void) | null = null;
+  private ignoreNextScrollEventTargets = new WeakSet<HTMLElement>();
 
   // Undo history for the editor
   private history: string[] = [];
@@ -704,12 +705,22 @@ export class HybridDiffModal extends Modal {
 
     // Setup scroll sync: left textarea <-> right overlay
     if (this.originalEditor && this.rightDiffOverlay) {
-      this.leftTextareaScrollListener = () => {
+      this.leftTextareaScrollListener = (event) => {
+        const currentTarget = event.currentTarget as HTMLElement | null;
+        if (currentTarget && this.ignoreNextScrollEventTargets.has(currentTarget)) {
+          this.ignoreNextScrollEventTargets.delete(currentTarget);
+          return;
+        }
         if (this.rightDiffOverlay) {
           this.syncScrollByPercentage(this.originalEditor!, this.rightDiffOverlay);
         }
       };
-      this.rightOverlayScrollListener = () => {
+      this.rightOverlayScrollListener = (event) => {
+        const currentTarget = event.currentTarget as HTMLElement | null;
+        if (currentTarget && this.ignoreNextScrollEventTargets.has(currentTarget)) {
+          this.ignoreNextScrollEventTargets.delete(currentTarget);
+          return;
+        }
         if (this.originalEditor) {
           this.syncScrollByPercentage(this.rightDiffOverlay!, this.originalEditor);
         }
@@ -722,6 +733,9 @@ export class HybridDiffModal extends Modal {
       requestAnimationFrame(() => {
         if (this.originalEditor && this.rightDiffOverlay) {
           this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+          if (this.modifiedEditor) {
+            this.ensureScrollableSpace(this.modifiedEditor, this.rightDiffOverlay);
+          }
           // Sync initial scroll position
           this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
         }
@@ -742,6 +756,9 @@ export class HybridDiffModal extends Modal {
     // Restore original scrollable space
     if (this.originalEditor) {
       this.restoreScrollableSpace(this.originalEditor);
+    }
+    if (this.modifiedEditor) {
+      this.restoreScrollableSpace(this.modifiedEditor);
     }
 
     // Remove scroll sync listeners
@@ -767,12 +784,22 @@ export class HybridDiffModal extends Modal {
 
     // Setup scroll sync: right textarea <-> left overlay
     if (this.modifiedEditor && this.leftDiffOverlay) {
-      this.rightTextareaScrollListener = () => {
+      this.rightTextareaScrollListener = (event) => {
+        const currentTarget = event.currentTarget as HTMLElement | null;
+        if (currentTarget && this.ignoreNextScrollEventTargets.has(currentTarget)) {
+          this.ignoreNextScrollEventTargets.delete(currentTarget);
+          return;
+        }
         if (this.leftDiffOverlay) {
           this.syncScrollByPercentage(this.modifiedEditor!, this.leftDiffOverlay);
         }
       };
-      this.leftOverlayScrollListener = () => {
+      this.leftOverlayScrollListener = (event) => {
+        const currentTarget = event.currentTarget as HTMLElement | null;
+        if (currentTarget && this.ignoreNextScrollEventTargets.has(currentTarget)) {
+          this.ignoreNextScrollEventTargets.delete(currentTarget);
+          return;
+        }
         if (this.modifiedEditor) {
           this.syncScrollByPercentage(this.leftDiffOverlay!, this.modifiedEditor);
         }
@@ -785,6 +812,9 @@ export class HybridDiffModal extends Modal {
       requestAnimationFrame(() => {
         if (this.modifiedEditor && this.leftDiffOverlay) {
           this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+          if (this.originalEditor) {
+            this.ensureScrollableSpace(this.originalEditor, this.leftDiffOverlay);
+          }
           // Sync initial scroll position
           this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
         }
@@ -806,6 +836,9 @@ export class HybridDiffModal extends Modal {
     if (this.modifiedEditor) {
       this.restoreScrollableSpace(this.modifiedEditor);
     }
+    if (this.originalEditor) {
+      this.restoreScrollableSpace(this.originalEditor);
+    }
 
     // Remove scroll sync listeners
     if (this.rightTextareaScrollListener && this.modifiedEditor) {
@@ -824,6 +857,13 @@ export class HybridDiffModal extends Modal {
     }
     content.scrollTop = textarea.scrollTop;
     content.scrollLeft = textarea.scrollLeft;
+  }
+
+  private ignoreNextScrollEvent(targetEl: HTMLElement): void {
+    this.ignoreNextScrollEventTargets.add(targetEl);
+    requestAnimationFrame(() => {
+      this.ignoreNextScrollEventTargets.delete(targetEl);
+    });
   }
 
   private syncScrollByPercentage(sourceEl: HTMLElement, targetEl: HTMLElement): void {
@@ -847,16 +887,14 @@ export class HybridDiffModal extends Modal {
       const originalScrollBehavior = targetEl.style.scrollBehavior;
       targetEl.style.scrollBehavior = 'auto';
 
+      this.ignoreNextScrollEvent(targetEl);
       targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
       targetEl.scrollLeft = sourceEl.scrollLeft;
 
       // Restore scroll behavior
       targetEl.style.scrollBehavior = originalScrollBehavior;
     } finally {
-      // Use setTimeout to reset flag after current event loop
-      setTimeout(() => {
-        this.isSyncingScroll = false;
-      }, 0);
+      this.isSyncingScroll = false;
     }
   }
 
@@ -865,17 +903,53 @@ export class HybridDiffModal extends Modal {
       return;
     }
 
+    const computed = window.getComputedStyle(textarea);
+    const originalPaddingBottom =
+      textarea.dataset.originalPaddingBottom !== undefined
+        ? parseFloat(textarea.dataset.originalPaddingBottom)
+        : parseFloat(computed.paddingBottom) || 0;
+
+    const currentPaddingBottom = parseFloat(computed.paddingBottom) || 0;
+    const currentExtraPadding = Math.max(0, currentPaddingBottom - originalPaddingBottom);
+
     // Calculate how much scrollable space each element has
-    const textareaScrollableHeight = textarea.scrollHeight - textarea.clientHeight;
+    const textareaScrollableHeight =
+      textarea.scrollHeight - textarea.clientHeight - currentExtraPadding;
     const overlayScrollableHeight = overlay.scrollHeight - overlay.clientHeight;
 
     // If overlay needs more scroll space than textarea has, add padding to textarea
-    if (overlayScrollableHeight > textareaScrollableHeight) {
-      const additionalPadding = overlayScrollableHeight - textareaScrollableHeight;
-      const currentPadding = parseInt(window.getComputedStyle(textarea).paddingBottom) || 0;
-      textarea.style.paddingBottom = `${currentPadding + additionalPadding}px`;
-      // Store original padding for restoration
-      textarea.dataset.originalPaddingBottom = currentPadding.toString();
+    const neededExtraPadding = Math.max(0, overlayScrollableHeight - textareaScrollableHeight);
+    if (neededExtraPadding === 0) {
+      if (textarea.dataset.originalPaddingBottom !== undefined) {
+        this.restoreScrollableSpace(textarea);
+      }
+      return;
+    }
+
+    if (
+      textarea.dataset.originalPaddingBottom !== undefined &&
+      neededExtraPadding === currentExtraPadding
+    ) {
+      return;
+    }
+
+    // Store original padding for restoration (only once).
+    if (textarea.dataset.originalPaddingBottom === undefined) {
+      textarea.dataset.originalPaddingBottom = String(originalPaddingBottom);
+    }
+
+    const prevScrollTop = textarea.scrollTop;
+    textarea.style.paddingBottom = `${originalPaddingBottom + neededExtraPadding}px`;
+
+    // Keep the visible text position stable: do not remap scrollTop on hover transitions.
+    // Only clamp if the new scroll range becomes smaller (e.g. diff view updated).
+    const maxAfter = textarea.scrollHeight - textarea.clientHeight;
+    if (prevScrollTop > maxAfter) {
+      const originalScrollBehavior = textarea.style.scrollBehavior;
+      textarea.style.scrollBehavior = "auto";
+      this.ignoreNextScrollEvent(textarea);
+      textarea.scrollTop = maxAfter;
+      textarea.style.scrollBehavior = originalScrollBehavior;
     }
   }
 
@@ -885,9 +959,25 @@ export class HybridDiffModal extends Modal {
     }
 
     // Restore original padding if it was modified
-    if (textarea.dataset.originalPaddingBottom !== undefined) {
-      textarea.style.paddingBottom = `${textarea.dataset.originalPaddingBottom}px`;
-      delete textarea.dataset.originalPaddingBottom;
+    if (textarea.dataset.originalPaddingBottom === undefined) {
+      return;
+    }
+
+    const originalPaddingBottom = parseFloat(textarea.dataset.originalPaddingBottom) || 0;
+    const prevScrollTop = textarea.scrollTop;
+
+    textarea.style.paddingBottom = `${originalPaddingBottom}px`;
+    delete textarea.dataset.originalPaddingBottom;
+
+    // Keep text position stable; if the user previously scrolled into the added padding region,
+    // clamp back to the true content bottom.
+    const maxAfter = textarea.scrollHeight - textarea.clientHeight;
+    if (prevScrollTop > maxAfter) {
+      const originalScrollBehavior = textarea.style.scrollBehavior;
+      textarea.style.scrollBehavior = "auto";
+      this.ignoreNextScrollEvent(textarea);
+      textarea.scrollTop = maxAfter;
+      textarea.style.scrollBehavior = originalScrollBehavior;
     }
   }
 
@@ -903,10 +993,16 @@ export class HybridDiffModal extends Modal {
     requestAnimationFrame(() => {
       if (this.leftHoverState === "hovered" && this.originalEditor && this.rightDiffOverlay) {
         this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
+        if (this.modifiedEditor) {
+          this.ensureScrollableSpace(this.modifiedEditor, this.rightDiffOverlay);
+        }
         this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
       }
       if (this.rightHoverState === "hovered" && this.modifiedEditor && this.leftDiffOverlay) {
         this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
+        if (this.originalEditor) {
+          this.ensureScrollableSpace(this.originalEditor, this.leftDiffOverlay);
+        }
         this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
       }
     });
@@ -1437,6 +1533,42 @@ export class HybridDiffModal extends Modal {
       overlay.addClass("scrollable");
       this.setOverlayContentTransform(side, "none");
       return;
+    }
+
+    // When an overlay was scrollable, it may have a different scroll position than its underlying textarea.
+    // If we simply disable overlay scrolling, the user's visible position can "desync" from what the textarea
+    // will scroll next. Commit the overlay's current scroll position back to the textarea and reset the
+    // overlay scroll offsets so transform-based syncing stays correct.
+    if (overlay.classList.contains("scrollable")) {
+      const textarea = side === "left" ? this.originalEditor : this.modifiedEditor;
+
+      // Prevent any scroll listeners from reacting to the programmatic adjustments below.
+      this.isSyncingScroll = true;
+      try {
+        if (textarea) {
+          const overlayScrollableHeight = overlay.scrollHeight - overlay.clientHeight;
+          const overlayPercent =
+            overlayScrollableHeight > 0 ? overlay.scrollTop / overlayScrollableHeight : 0;
+          const clampedPercent = Math.max(0, Math.min(1, overlayPercent));
+
+          const textareaScrollableHeight = textarea.scrollHeight - textarea.clientHeight;
+          const originalTextareaScrollBehavior = textarea.style.scrollBehavior;
+          textarea.style.scrollBehavior = "auto";
+          this.ignoreNextScrollEvent(textarea);
+          textarea.scrollTop = textareaScrollableHeight * clampedPercent;
+          textarea.scrollLeft = overlay.scrollLeft;
+          textarea.style.scrollBehavior = originalTextareaScrollBehavior;
+        }
+
+        const originalOverlayScrollBehavior = overlay.style.scrollBehavior;
+        overlay.style.scrollBehavior = "auto";
+        this.ignoreNextScrollEvent(overlay);
+        overlay.scrollTop = 0;
+        overlay.scrollLeft = 0;
+        overlay.style.scrollBehavior = originalOverlayScrollBehavior;
+      } finally {
+        this.isSyncingScroll = false;
+      }
     }
 
     overlay.removeClass("scrollable");
