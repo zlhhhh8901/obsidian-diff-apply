@@ -974,3 +974,33 @@
   position: relative;
   z-index: 1;
 }
+
+/* Paragraph markers for cross-view positioning */
+.diff-paragraph-marker {
+  display: inline;
+  user-select: none;
+  pointer-events: none;
+  margin: 0 0.2em;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast) var(--ease-out);
+  opacity: 0.55;
+}
+
+.diff-paragraph-marker-dot {
+  font-size: 0.5em;
+  color: var(--text-accent);
+  vertical-align: middle;
+}
+
+.diff-paragraph-marker-num {
+  font-size: 0.7em;
+  color: var(--text-accent);
+  vertical-align: super;
+  font-weight: var(--font-weight-medium);
+  margin-left: 0.05em;
+}
+
+/* More visible on hover */
+.diff-inline-content:hover .diff-paragraph-marker {
+  opacity: 0.85;
+}

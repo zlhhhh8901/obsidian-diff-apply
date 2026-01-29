@@ -1629,6 +1629,176 @@ export class HybridDiffModal extends Modal {
     this.setOverlayScrollable("right", false);
   }
 
+  /**
+   * Count paragraphs in text (separated by blank lines: \n\n or more)
+   */
+  private countParagraphs(text: string): number {
+    if (!text.trim()) return 0;
+    // Split by one or more blank lines
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    return paragraphs.length;
+  }
+
+  /**
+   * Find all paragraph break positions (character indices at the start of blank lines)
+   * This places markers at the end of paragraphs, right before the blank line
+   */
+  private findParagraphBreakPositions(text: string): number[] {
+    const positions: number[] = [];
+    const regex = /\n\s*\n/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      // Position at the start of the blank line (end of previous paragraph)
+      positions.push(match.index);
+    }
+    return positions;
+  }
+
+  /**
+   * Get superscript number character for index (1-based)
+   */
+  private getSuperscriptNumber(n: number): string {
+    const superscripts = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    if (n <= 0) return '';
+    if (n < 10) return superscripts[n];
+    // For numbers >= 10, combine digits
+    return String(n).split('').map(d => superscripts[parseInt(d)]).join('');
+  }
+
+  /**
+   * Create a paragraph marker element (dot + superscript number)
+   */
+  private createParagraphMarker(container: HTMLElement, number: number): void {
+    const marker = container.createSpan({ cls: 'diff-paragraph-marker' });
+    const dot = marker.createSpan({ cls: 'diff-paragraph-marker-dot' });
+    dot.textContent = '●';
+    const num = marker.createSpan({ cls: 'diff-paragraph-marker-num' });
+    num.textContent = this.getSuperscriptNumber(number);
+  }
+
+  /**
+   * Calculate paragraph marker positions for both sides based on diff result.
+   * Returns marker info: which side has more paragraphs, and where to insert markers.
+   */
+  private calculateParagraphMarkers(
+    originalText: string,
+    modifiedText: string,
+    diffResult: Array<{ value: string; added?: boolean; removed?: boolean }>
+  ): {
+    moreParagraphsSide: 'left' | 'right' | 'equal';
+    // For each marker number, store the character position in left and right text
+    markers: Array<{ number: number; leftPos: number; rightPos: number }>;
+  } {
+    const leftParagraphs = this.countParagraphs(originalText);
+    const rightParagraphs = this.countParagraphs(modifiedText);
+
+    // Determine which side has more paragraphs
+    let moreParagraphsSide: 'left' | 'right' | 'equal';
+    let sourceText: string;
+    let sourceBreakPositions: number[];
+
+    if (rightParagraphs > leftParagraphs) {
+      moreParagraphsSide = 'right';
+      sourceText = modifiedText;
+      sourceBreakPositions = this.findParagraphBreakPositions(modifiedText);
+    } else if (leftParagraphs > rightParagraphs) {
+      moreParagraphsSide = 'left';
+      sourceText = originalText;
+      sourceBreakPositions = this.findParagraphBreakPositions(originalText);
+    } else {
+      // Equal paragraphs - no markers needed
+      return { moreParagraphsSide: 'equal', markers: [] };
+    }
+
+    // Now traverse the diff result to find corresponding positions
+    const markers: Array<{ number: number; leftPos: number; rightPos: number }> = [];
+    let leftPos = 0;
+    let rightPos = 0;
+    let markerNumber = 1;
+    let nextBreakIndex = 0;
+
+    for (const part of diffResult) {
+      const partLength = part.value.length;
+
+      if (part.removed) {
+        // Only in left (original)
+        if (moreParagraphsSide === 'left') {
+          // Check if any break positions fall within this part
+          while (nextBreakIndex < sourceBreakPositions.length) {
+            const breakPos = sourceBreakPositions[nextBreakIndex];
+            if (breakPos > leftPos && breakPos <= leftPos + partLength) {
+              markers.push({
+                number: markerNumber++,
+                leftPos: breakPos,
+                rightPos: rightPos
+              });
+              nextBreakIndex++;
+            } else {
+              break;
+            }
+          }
+        }
+        leftPos += partLength;
+      } else if (part.added) {
+        // Only in right (modified)
+        if (moreParagraphsSide === 'right') {
+          // Check if any break positions fall within this part
+          while (nextBreakIndex < sourceBreakPositions.length) {
+            const breakPos = sourceBreakPositions[nextBreakIndex];
+            if (breakPos > rightPos && breakPos <= rightPos + partLength) {
+              markers.push({
+                number: markerNumber++,
+                leftPos: leftPos,
+                rightPos: breakPos
+              });
+              nextBreakIndex++;
+            } else {
+              break;
+            }
+          }
+        }
+        rightPos += partLength;
+      } else {
+        // Unchanged - exists in both
+        if (moreParagraphsSide === 'left') {
+          while (nextBreakIndex < sourceBreakPositions.length) {
+            const breakPos = sourceBreakPositions[nextBreakIndex];
+            if (breakPos > leftPos && breakPos <= leftPos + partLength) {
+              const offsetInPart = breakPos - leftPos;
+              markers.push({
+                number: markerNumber++,
+                leftPos: breakPos,
+                rightPos: rightPos + offsetInPart
+              });
+              nextBreakIndex++;
+            } else {
+              break;
+            }
+          }
+        } else if (moreParagraphsSide === 'right') {
+          while (nextBreakIndex < sourceBreakPositions.length) {
+            const breakPos = sourceBreakPositions[nextBreakIndex];
+            if (breakPos > rightPos && breakPos <= rightPos + partLength) {
+              const offsetInPart = breakPos - rightPos;
+              markers.push({
+                number: markerNumber++,
+                leftPos: leftPos + offsetInPart,
+                rightPos: breakPos
+              });
+              nextBreakIndex++;
+            } else {
+              break;
+            }
+          }
+        }
+        leftPos += partLength;
+        rightPos += partLength;
+      }
+    }
+
+    return { moreParagraphsSide, markers };
+  }
+
   private rebuildReadOnlyDiffCaches(): void {
     if (this.isEditModeEnabled) {
       return;
@@ -1648,6 +1818,21 @@ export class HybridDiffModal extends Modal {
 
     const diffResult = this.diffInlineText(currentOriginal, currentModified);
 
+    // Calculate paragraph markers
+    const { moreParagraphsSide, markers } = this.calculateParagraphMarkers(
+      currentOriginal,
+      currentModified,
+      diffResult
+    );
+
+    // Create a map for quick lookup: position -> marker number
+    const leftMarkerMap = new Map<number, number>();
+    const rightMarkerMap = new Map<number, number>();
+    for (const m of markers) {
+      leftMarkerMap.set(m.leftPos, m.number);
+      rightMarkerMap.set(m.rightPos, m.number);
+    }
+
     // Clear all layers
     leftLayers.default.textContent = "";
     leftLayers.hover.textContent = "";
@@ -1656,58 +1841,157 @@ export class HybridDiffModal extends Modal {
     rightLayers.hover.textContent = "";
     rightLayers.complete.textContent = "";
 
-    for (const part of diffResult) {
-      // Left default: deletions only
-      if (!part.added) {
-        const span = leftLayers.default.createSpan();
-        span.textContent = part.value;
-        if (part.removed) {
-          span.addClass("diff-deleted-default");
+    // Track positions as we render
+    let leftPos = 0;
+    let rightPos = 0;
+
+    // Helper to render text with markers interspersed
+    const renderTextWithMarkers = (
+      container: HTMLElement,
+      text: string,
+      startPos: number,
+      markerMap: Map<number, number>,
+      cssClass?: string
+    ) => {
+      let currentPos = startPos;
+      let textOffset = 0;
+
+      while (textOffset < text.length) {
+        // Check if there's a marker at current position
+        const markerNum = markerMap.get(currentPos);
+        if (markerNum !== undefined) {
+          this.createParagraphMarker(container, markerNum);
         }
+
+        // Find next marker position within this text
+        let nextMarkerOffset = text.length;
+        for (const [pos] of markerMap) {
+          if (pos > currentPos && pos < startPos + text.length) {
+            const offset = pos - startPos;
+            if (offset < nextMarkerOffset && offset > textOffset) {
+              nextMarkerOffset = offset;
+            }
+          }
+        }
+
+        // Render text up to next marker (or end)
+        const chunk = text.slice(textOffset, nextMarkerOffset);
+        if (chunk) {
+          const span = container.createSpan();
+          span.textContent = chunk;
+          if (cssClass) {
+            span.addClass(cssClass);
+          }
+        }
+
+        textOffset = nextMarkerOffset;
+        currentPos = startPos + textOffset;
+      }
+      // Note: Don't check for marker at the very end here, as it will be handled
+      // by the next diff part's start position check
+    };
+
+    // Helper to render text without markers (for complete layer parts that don't need markers)
+    const renderTextSimple = (
+      container: HTMLElement,
+      text: string,
+      cssClass?: string
+    ) => {
+      const span = container.createSpan();
+      span.textContent = text;
+      if (cssClass) {
+        span.addClass(cssClass);
+      }
+    };
+
+    // Determine which marker map to use for complete layer
+    const completeMarkerMap = moreParagraphsSide === 'right' ? rightMarkerMap : leftMarkerMap;
+
+    for (const part of diffResult) {
+      const partLength = part.value.length;
+
+      // Left default: deletions only (show removed and unchanged)
+      if (!part.added) {
+        renderTextWithMarkers(
+          leftLayers.default,
+          part.value,
+          leftPos,
+          leftMarkerMap,
+          part.removed ? "diff-deleted-default" : undefined
+        );
       }
 
-      // Right default: additions only
+      // Right default: additions only (show added and unchanged)
       if (!part.removed) {
-        const span = rightLayers.default.createSpan();
-        span.textContent = part.value;
-        if (part.added) {
-          span.addClass("diff-added-default");
-        }
+        renderTextWithMarkers(
+          rightLayers.default,
+          part.value,
+          rightPos,
+          rightMarkerMap,
+          part.added ? "diff-added-default" : undefined
+        );
       }
 
       // Left hover: deletions underline
       if (!part.added) {
-        const span = leftLayers.hover.createSpan();
-        span.textContent = part.value;
-        if (part.removed) {
-          span.addClass("diff-deleted-hover");
-        }
+        renderTextWithMarkers(
+          leftLayers.hover,
+          part.value,
+          leftPos,
+          leftMarkerMap,
+          part.removed ? "diff-deleted-hover" : undefined
+        );
       }
 
       // Right hover: additions underline
       if (!part.removed) {
-        const span = rightLayers.hover.createSpan();
-        span.textContent = part.value;
-        if (part.added) {
-          span.addClass("diff-added-hover");
+        renderTextWithMarkers(
+          rightLayers.hover,
+          part.value,
+          rightPos,
+          rightMarkerMap,
+          part.added ? "diff-added-hover" : undefined
+        );
+      }
+
+      // Complete layer: show everything with markers based on moreParagraphsSide
+      // The complete layer's paragraph structure matches the side with more paragraphs
+      const completeCssClass = part.removed ? "diff-deleted-complete" : (part.added ? "diff-added-complete" : undefined);
+
+      if (moreParagraphsSide === 'right') {
+        // Markers are based on modified text positions
+        // Only render markers for added and unchanged parts (which exist in modified)
+        if (!part.removed) {
+          renderTextWithMarkers(leftLayers.complete, part.value, rightPos, completeMarkerMap, completeCssClass);
+          renderTextWithMarkers(rightLayers.complete, part.value, rightPos, completeMarkerMap, completeCssClass);
+        } else {
+          // Removed parts don't have markers (they don't exist in modified)
+          renderTextSimple(leftLayers.complete, part.value, completeCssClass);
+          renderTextSimple(rightLayers.complete, part.value, completeCssClass);
         }
+      } else if (moreParagraphsSide === 'left') {
+        // Markers are based on original text positions
+        // Only render markers for removed and unchanged parts (which exist in original)
+        if (!part.added) {
+          renderTextWithMarkers(leftLayers.complete, part.value, leftPos, completeMarkerMap, completeCssClass);
+          renderTextWithMarkers(rightLayers.complete, part.value, leftPos, completeMarkerMap, completeCssClass);
+        } else {
+          // Added parts don't have markers (they don't exist in original)
+          renderTextSimple(leftLayers.complete, part.value, completeCssClass);
+          renderTextSimple(rightLayers.complete, part.value, completeCssClass);
+        }
+      } else {
+        // No markers needed (equal paragraphs)
+        renderTextSimple(leftLayers.complete, part.value, completeCssClass);
+        renderTextSimple(rightLayers.complete, part.value, completeCssClass);
       }
 
-      // Complete: show everything with add/remove markers
-      const leftCompleteSpan = leftLayers.complete.createSpan();
-      leftCompleteSpan.textContent = part.value;
-      if (part.removed) {
-        leftCompleteSpan.addClass("diff-deleted-complete");
-      } else if (part.added) {
-        leftCompleteSpan.addClass("diff-added-complete");
+      // Update positions
+      if (!part.added) {
+        leftPos += partLength;
       }
-
-      const rightCompleteSpan = rightLayers.complete.createSpan();
-      rightCompleteSpan.textContent = part.value;
-      if (part.removed) {
-        rightCompleteSpan.addClass("diff-deleted-complete");
-      } else if (part.added) {
-        rightCompleteSpan.addClass("diff-added-complete");
+      if (!part.removed) {
+        rightPos += partLength;
       }
     }
   }
