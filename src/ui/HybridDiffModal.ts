@@ -1220,16 +1220,24 @@ export class HybridDiffModal extends Modal {
 
     const savedScrollTop = textarea.scrollTop;
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? 0;
     const before = textarea.value.substring(0, start);
     const after = textarea.value.substring(end);
-    const insertStart = start;
-    const insertEnd = start + text.length;
+    const wasFocused = document.activeElement === textarea;
 
     const newValue = before + text + after;
     textarea.value = newValue;
-    textarea.focus();
+
+    // Textareas normalize line endings; derive the actual inserted length after assignment.
+    const normalizedValue = textarea.value;
+    const normalizedInsertLength = Math.max(0, normalizedValue.length - before.length - after.length);
+    const insertStart = before.length;
+    const insertEnd = insertStart + normalizedInsertLength;
+
+    if (wasFocused) {
+      textarea.focus();
+    }
     this.flashCopiedRange(textarea, insertStart, insertEnd);
 
     textarea.scrollTop = savedScrollTop;
