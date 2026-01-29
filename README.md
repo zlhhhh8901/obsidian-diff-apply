@@ -33,6 +33,7 @@
 
 | 功能 | 说明 |
 |------|------|
+| 段落定位标记 | 当两侧段落数不同时，自动在段落分隔处显示 ●¹ ●² 等编号，方便跨栏定位 |
 | Edit Mode | 左右栏变为可编辑模式，差异视图实时更改 |
 | Diff 粒度 | Word / Char 切换，适用于不同语言 |
 | 字号调节 | 10–24px |
@@ -79,6 +80,7 @@
 
 | Feature | Notes |
 |--------|------|
+| Paragraph markers | When paragraph counts differ between sides, markers like ●¹ ●² appear at paragraph breaks for easy cross-column navigation |
 | Edit Mode | Left/right columns become editable; the diff view updates in real time |
 | Diff granularity | Switch Word / Char, useful for different languages |
 | Font size | 10–24px |
