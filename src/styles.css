@@ -736,6 +736,11 @@
   scroll-behavior: smooth;
 }
 
+/* Temporarily disable smooth scrolling for programmatic adjustments. */
+.hybrid-diff-modal .diff-apply-scroll-behavior-auto {
+  scroll-behavior: auto !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hybrid-editor,
   .diff-inline-overlay.scrollable {
@@ -744,7 +749,27 @@
 }
 
 /* Keep the middle Editor's selection/caret visually visible while focusing Original/Modified. */
+.hybrid-diff-modal .diff-apply-editor-mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2;
+  display: none;
+}
+
+.hybrid-diff-modal .diff-apply-editor-mirror.is-visible {
+  display: block;
+}
+
 .hybrid-diff-modal .diff-apply-editor-mirror-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
   scrollbar-width: none;
 }
 

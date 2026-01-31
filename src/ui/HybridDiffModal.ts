@@ -103,7 +103,7 @@ export class HybridDiffModal extends Modal {
     const brand = header.createDiv({ cls: "brand" });
     const brandIcon = brand.createSpan({ cls: "brand-icon", attr: { "aria-hidden": "true" } });
     setIcon(brandIcon, "git-merge");
-    brand.createEl("span", { text: "Merge Conflict Resolver" });
+    brand.createEl("span", { text: "Merge conflict resolver" });
 
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.addClass("merge-conflict-view");
@@ -271,6 +271,19 @@ export class HybridDiffModal extends Modal {
     }
   }
 
+  private withScrollBehaviorAuto(targetEl: HTMLElement, fn: () => void): void {
+    const cls = "diff-apply-scroll-behavior-auto";
+    const alreadyEnabled = targetEl.hasClass(cls);
+    targetEl.addClass(cls);
+    try {
+      fn();
+    } finally {
+      if (!alreadyEnabled) {
+        targetEl.removeClass(cls);
+      }
+    }
+  }
+
   private syncFinalEditorMirrorStyles(): void {
     if (!this.finalEditor || !this.finalEditorMirrorEl || !this.finalEditorMirrorScrollEl) {
       return;
@@ -278,28 +291,16 @@ export class HybridDiffModal extends Modal {
 
     const computed = window.getComputedStyle(this.finalEditor);
 
-    this.finalEditorMirrorEl.style.position = "absolute";
-    this.finalEditorMirrorEl.style.top = "0";
-    this.finalEditorMirrorEl.style.left = "0";
-    this.finalEditorMirrorEl.style.right = "0";
-    this.finalEditorMirrorEl.style.bottom = "0";
-    this.finalEditorMirrorEl.style.pointerEvents = "none";
-    this.finalEditorMirrorEl.style.zIndex = "2";
-    this.finalEditorMirrorEl.style.display = "none";
-
-    this.finalEditorMirrorScrollEl.style.width = "100%";
-    this.finalEditorMirrorScrollEl.style.height = "100%";
-    this.finalEditorMirrorScrollEl.style.overflow = "auto";
-    this.finalEditorMirrorScrollEl.style.boxSizing = computed.boxSizing;
-    this.finalEditorMirrorScrollEl.style.padding = computed.padding;
-    this.finalEditorMirrorScrollEl.style.fontFamily = computed.fontFamily;
-    this.finalEditorMirrorScrollEl.style.fontSize = computed.fontSize;
-    this.finalEditorMirrorScrollEl.style.lineHeight = computed.lineHeight;
-    this.finalEditorMirrorScrollEl.style.letterSpacing = computed.letterSpacing;
-    this.finalEditorMirrorScrollEl.style.backgroundColor = computed.backgroundColor;
-    this.finalEditorMirrorScrollEl.style.color = computed.color;
-    this.finalEditorMirrorScrollEl.style.whiteSpace = "pre-wrap";
-    this.finalEditorMirrorScrollEl.style.wordBreak = "break-word";
+    this.finalEditorMirrorScrollEl.setCssProps({
+      "box-sizing": computed.boxSizing,
+      padding: computed.padding,
+      "font-family": computed.fontFamily,
+      "font-size": computed.fontSize,
+      "line-height": computed.lineHeight,
+      "letter-spacing": computed.letterSpacing,
+      "background-color": computed.backgroundColor,
+      color: computed.color,
+    });
   }
 
   private syncFinalEditorMirror(): void {
@@ -319,7 +320,7 @@ export class HybridDiffModal extends Modal {
       this.isPointerInSidePanels;
 
     if (!isInteractingWithSidePanels) {
-      this.finalEditorMirrorEl.style.display = "none";
+      this.finalEditorMirrorEl.toggleClass("is-visible", false);
       return;
     }
 
@@ -333,11 +334,11 @@ export class HybridDiffModal extends Modal {
 
     // Only show mirror when textarea is blurred (otherwise the native selection/caret is visible).
     if (document.activeElement === this.finalEditor) {
-      this.finalEditorMirrorEl.style.display = "none";
+      this.finalEditorMirrorEl.toggleClass("is-visible", false);
       return;
     }
 
-    this.finalEditorMirrorEl.style.display = "block";
+    this.finalEditorMirrorEl.toggleClass("is-visible", true);
     this.renderFinalEditorMirrorContent(value, selectionStart, selectionEnd);
   }
 
@@ -884,15 +885,11 @@ export class HybridDiffModal extends Modal {
       const targetScrollHeight = targetEl.scrollHeight - targetEl.clientHeight;
 
       // Temporarily disable smooth scrolling to prevent async scroll events
-      const originalScrollBehavior = targetEl.style.scrollBehavior;
-      targetEl.style.scrollBehavior = 'auto';
-
-      this.ignoreNextScrollEvent(targetEl);
-      targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
-      targetEl.scrollLeft = sourceEl.scrollLeft;
-
-      // Restore scroll behavior
-      targetEl.style.scrollBehavior = originalScrollBehavior;
+      this.withScrollBehaviorAuto(targetEl, () => {
+        this.ignoreNextScrollEvent(targetEl);
+        targetEl.scrollTop = targetScrollHeight * sourceScrollPercentage;
+        targetEl.scrollLeft = sourceEl.scrollLeft;
+      });
     } finally {
       this.isSyncingScroll = false;
     }
@@ -945,11 +942,10 @@ export class HybridDiffModal extends Modal {
     // Only clamp if the new scroll range becomes smaller (e.g. diff view updated).
     const maxAfter = textarea.scrollHeight - textarea.clientHeight;
     if (prevScrollTop > maxAfter) {
-      const originalScrollBehavior = textarea.style.scrollBehavior;
-      textarea.style.scrollBehavior = "auto";
-      this.ignoreNextScrollEvent(textarea);
-      textarea.scrollTop = maxAfter;
-      textarea.style.scrollBehavior = originalScrollBehavior;
+      this.withScrollBehaviorAuto(textarea, () => {
+        this.ignoreNextScrollEvent(textarea);
+        textarea.scrollTop = maxAfter;
+      });
     }
   }
 
@@ -973,11 +969,10 @@ export class HybridDiffModal extends Modal {
     // clamp back to the true content bottom.
     const maxAfter = textarea.scrollHeight - textarea.clientHeight;
     if (prevScrollTop > maxAfter) {
-      const originalScrollBehavior = textarea.style.scrollBehavior;
-      textarea.style.scrollBehavior = "auto";
-      this.ignoreNextScrollEvent(textarea);
-      textarea.scrollTop = maxAfter;
-      textarea.style.scrollBehavior = originalScrollBehavior;
+      this.withScrollBehaviorAuto(textarea, () => {
+        this.ignoreNextScrollEvent(textarea);
+        textarea.scrollTop = maxAfter;
+      });
     }
   }
 
@@ -1296,7 +1291,7 @@ export class HybridDiffModal extends Modal {
       return;
     }
 
-    if (event.key === "Enter" || event.key === "Return" || event.keyCode === 13) {
+    if (event.key === "Enter") {
       if (activeElement === this.finalEditor) {
         return;
       }
@@ -1560,20 +1555,18 @@ export class HybridDiffModal extends Modal {
           const clampedPercent = Math.max(0, Math.min(1, overlayPercent));
 
           const textareaScrollableHeight = textarea.scrollHeight - textarea.clientHeight;
-          const originalTextareaScrollBehavior = textarea.style.scrollBehavior;
-          textarea.style.scrollBehavior = "auto";
-          this.ignoreNextScrollEvent(textarea);
-          textarea.scrollTop = textareaScrollableHeight * clampedPercent;
-          textarea.scrollLeft = overlay.scrollLeft;
-          textarea.style.scrollBehavior = originalTextareaScrollBehavior;
+          this.withScrollBehaviorAuto(textarea, () => {
+            this.ignoreNextScrollEvent(textarea);
+            textarea.scrollTop = textareaScrollableHeight * clampedPercent;
+            textarea.scrollLeft = overlay.scrollLeft;
+          });
         }
 
-        const originalOverlayScrollBehavior = overlay.style.scrollBehavior;
-        overlay.style.scrollBehavior = "auto";
-        this.ignoreNextScrollEvent(overlay);
-        overlay.scrollTop = 0;
-        overlay.scrollLeft = 0;
-        overlay.style.scrollBehavior = originalOverlayScrollBehavior;
+        this.withScrollBehaviorAuto(overlay, () => {
+          this.ignoreNextScrollEvent(overlay);
+          overlay.scrollTop = 0;
+          overlay.scrollLeft = 0;
+        });
       } finally {
         this.isSyncingScroll = false;
       }
@@ -1702,16 +1695,13 @@ export class HybridDiffModal extends Modal {
 
     // Determine which side has more paragraphs
     let moreParagraphsSide: 'left' | 'right' | 'equal';
-    let sourceText: string;
     let sourceBreakPositions: number[];
 
     if (rightParagraphs > leftParagraphs) {
       moreParagraphsSide = 'right';
-      sourceText = modifiedText;
       sourceBreakPositions = this.findParagraphBreakPositions(modifiedText);
     } else if (leftParagraphs > rightParagraphs) {
       moreParagraphsSide = 'left';
-      sourceText = originalText;
       sourceBreakPositions = this.findParagraphBreakPositions(originalText);
     } else {
       // Equal paragraphs - no markers needed

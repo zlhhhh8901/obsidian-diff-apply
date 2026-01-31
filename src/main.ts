@@ -30,7 +30,7 @@ export default class DiffApplyPlugin extends Plugin {
     await this.loadUiState();
 
     this.addCommand({
-      id: "diff-apply-hybrid",
+      id: "hybrid-diff",
       name: this.t("command.hybrid.name"),
       editorCallback: (editor) => this.openHybridDiffForSelection(editor),
     });
