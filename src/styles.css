@@ -857,7 +857,7 @@
 }
 
 .diff-inline-overlay[data-layered][data-active-layer="default"] > .diff-inline-content[data-layer="default"],
-.diff-inline-overlay[data-layered][data-active-layer="hover"] > .diff-inline-content[data-layer="hover"],
+.diff-inline-overlay[data-layered][data-active-layer="hover"] > .diff-inline-content[data-layer="default"],
 .diff-inline-overlay[data-layered][data-active-layer="complete"] > .diff-inline-content[data-layer="complete"] {
   display: block;
 }
@@ -872,8 +872,10 @@
 }
 
 /* Hover state - thin underlines */
-.diff-deleted-hover {
+.diff-deleted-hover,
+.diff-inline-overlay[data-active-layer="hover"] .diff-deleted-default {
   text-decoration: none;
+  background-color: transparent;
   padding-bottom: var(--hybrid-diff-underline-pad);
   background-image: radial-gradient(
     circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius-hover)),
@@ -886,8 +888,10 @@
   background-position: left bottom;
 }
 
-.diff-added-hover {
+.diff-added-hover,
+.diff-inline-overlay[data-active-layer="hover"] .diff-added-default {
   text-decoration: none;
+  background-color: transparent;
   padding-bottom: var(--hybrid-diff-underline-pad);
   background-image: radial-gradient(
     circle at 50% calc(100% - var(--hybrid-diff-underline-dot-radius-hover)),

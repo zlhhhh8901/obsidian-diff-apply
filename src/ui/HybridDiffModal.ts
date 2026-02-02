@@ -52,8 +52,10 @@ export class HybridDiffModal extends Modal {
   private rightHoverState: 'default' | 'hovered' = 'default';
   private leftDiffOverlay: HTMLDivElement | null = null;
   private rightDiffOverlay: HTMLDivElement | null = null;
-  private leftDiffLayers: Partial<Record<DiffLayer, HTMLDivElement>> | null = null;
-  private rightDiffLayers: Partial<Record<DiffLayer, HTMLDivElement>> | null = null;
+  private leftDiffContentEl: HTMLDivElement | null = null;
+  private rightDiffContentEl: HTMLDivElement | null = null;
+  private sharedCompleteDiffContentEl: HTMLDivElement | null = null;
+  private sharedCompleteDiffHostOverlay: HTMLDivElement | null = null;
 
   private copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
   private leftPanel: HTMLDivElement | null = null;
@@ -110,7 +112,21 @@ export class HybridDiffModal extends Modal {
     this.modalEl.style.setProperty("--hybrid-font-size", `${this.fontSize}px`);
     this.applyDiffThemeSettings();
 
+    this.modalEl.style.display = "flex";
+    this.modalEl.style.flexDirection = "column";
+    this.modalEl.style.overflow = "hidden";
+
+    this.titleEl.style.flex = "0 0 auto";
+
+    this.contentEl.style.display = "flex";
+    this.contentEl.style.flexDirection = "column";
+    this.contentEl.style.flex = "1 1 auto";
+    this.contentEl.style.minHeight = "0";
+    this.contentEl.style.overflow = "hidden";
+
     const container = this.contentEl.createDiv({ cls: "hybrid-diff-container" });
+    container.style.flex = "1 1 auto";
+    container.style.minHeight = "0";
 
     const editorsContainer = container.createDiv({ cls: "hybrid-editors-container" });
 
@@ -146,11 +162,7 @@ export class HybridDiffModal extends Modal {
     // Create left diff overlay
     const leftOverlayResult = this.createInlineDiffOverlay(leftContent);
     this.leftDiffOverlay = leftOverlayResult.overlay;
-    this.leftDiffLayers = {
-      default: leftOverlayResult.defaultContent,
-      hover: leftOverlayResult.hoverContent,
-      complete: leftOverlayResult.completeContent,
-    };
+    this.leftDiffContentEl = leftOverlayResult.content;
 
     // Sync scroll for left overlay
     originalEditor.addEventListener('scroll', () => {
@@ -181,11 +193,7 @@ export class HybridDiffModal extends Modal {
     // Create right diff overlay
     const rightOverlayResult = this.createInlineDiffOverlay(rightContent);
     this.rightDiffOverlay = rightOverlayResult.overlay;
-    this.rightDiffLayers = {
-      default: rightOverlayResult.defaultContent,
-      hover: rightOverlayResult.hoverContent,
-      complete: rightOverlayResult.completeContent,
-    };
+    this.rightDiffContentEl = rightOverlayResult.content;
 
     // Sync scroll for right overlay
     modifiedEditor.addEventListener('scroll', () => {
@@ -1375,8 +1383,10 @@ export class HybridDiffModal extends Modal {
     // Clean up diff overlay references
     this.leftDiffOverlay = null;
     this.rightDiffOverlay = null;
-    this.leftDiffLayers = null;
-    this.rightDiffLayers = null;
+    this.leftDiffContentEl = null;
+    this.rightDiffContentEl = null;
+    this.sharedCompleteDiffContentEl = null;
+    this.sharedCompleteDiffHostOverlay = null;
 
     this.contentEl.empty();
   }
@@ -1481,9 +1491,7 @@ export class HybridDiffModal extends Modal {
 
   private createInlineDiffOverlay(container: HTMLElement): {
     overlay: HTMLDivElement;
-    defaultContent: HTMLDivElement;
-    hoverContent: HTMLDivElement;
-    completeContent: HTMLDivElement;
+    content: HTMLDivElement;
   } {
     const overlay = container.createDiv({ cls: "diff-inline-overlay" });
     overlay.dataset.layered = "true";
@@ -1493,35 +1501,49 @@ export class HybridDiffModal extends Modal {
       cls: "diff-inline-content",
       attr: { "data-layer": "default" },
     });
-    const hoverContent = overlay.createDiv({
-      cls: "diff-inline-content",
-      attr: { "data-layer": "hover" },
-    });
-    const completeContent = overlay.createDiv({
-      cls: "diff-inline-content",
-      attr: { "data-layer": "complete" },
-    });
 
     // Make the data-layer attribute robust even if Obsidian's helper doesn't set it in some contexts.
     defaultContent.dataset.layer = "default";
-    hoverContent.dataset.layer = "hover";
-    completeContent.dataset.layer = "complete";
 
-    return { overlay, defaultContent, hoverContent, completeContent };
+    return { overlay, content: defaultContent };
   }
 
   private getOverlay(side: "left" | "right"): HTMLDivElement | null {
     return side === "left" ? this.leftDiffOverlay : this.rightDiffOverlay;
   }
 
-  private getOverlayLayers(side: "left" | "right"): Partial<Record<DiffLayer, HTMLDivElement>> | null {
-    return side === "left" ? this.leftDiffLayers : this.rightDiffLayers;
+  private getOverlayContent(side: "left" | "right"): HTMLDivElement | null {
+    return side === "left" ? this.leftDiffContentEl : this.rightDiffContentEl;
+  }
+
+  private getOrCreateSharedCompleteDiffContentEl(): HTMLDivElement {
+    if (this.sharedCompleteDiffContentEl) {
+      return this.sharedCompleteDiffContentEl;
+    }
+
+    const el = document.createElement("div");
+    el.className = "diff-inline-content";
+    el.dataset.layer = "complete";
+    this.sharedCompleteDiffContentEl = el;
+    return el;
+  }
+
+  private mountSharedCompleteDiffContent(targetOverlay: HTMLDivElement): void {
+    const contentEl = this.getOrCreateSharedCompleteDiffContentEl();
+    if (contentEl.parentElement !== targetOverlay) {
+      targetOverlay.appendChild(contentEl);
+      this.sharedCompleteDiffHostOverlay = targetOverlay;
+    }
   }
 
   private setOverlayLayer(side: "left" | "right", layer: DiffLayer): void {
     const overlay = this.getOverlay(side);
     if (!overlay) {
       return;
+    }
+
+    if (layer === "complete") {
+      this.mountSharedCompleteDiffContent(overlay);
     }
     overlay.dataset.activeLayer = layer;
   }
@@ -1577,15 +1599,19 @@ export class HybridDiffModal extends Modal {
   }
 
   private setOverlayContentTransform(side: "left" | "right", transform: string): void {
-    const layers = this.getOverlayLayers(side);
-    if (!layers) {
-      return;
+    const contentEl = this.getOverlayContent(side);
+    if (contentEl) {
+      contentEl.style.transform = transform;
     }
-    const all: Array<HTMLDivElement | undefined> = [layers.default, layers.hover, layers.complete];
-    for (const el of all) {
-      if (el) {
-        el.style.transform = transform;
-      }
+
+    const overlay = this.getOverlay(side);
+    if (
+      overlay &&
+      overlay.dataset.activeLayer === "complete" &&
+      this.sharedCompleteDiffHostOverlay === overlay &&
+      this.sharedCompleteDiffContentEl
+    ) {
+      this.sharedCompleteDiffContentEl.style.transform = transform;
     }
   }
 
@@ -1669,12 +1695,20 @@ export class HybridDiffModal extends Modal {
   /**
    * Create a paragraph marker element (dot + superscript number)
    */
-  private createParagraphMarker(container: HTMLElement, number: number): void {
-    const marker = container.createSpan({ cls: 'diff-paragraph-marker' });
-    const dot = marker.createSpan({ cls: 'diff-paragraph-marker-dot' });
-    dot.textContent = '●';
-    const num = marker.createSpan({ cls: 'diff-paragraph-marker-num' });
+  private createParagraphMarkerElement(number: number): HTMLSpanElement {
+    const marker = document.createElement("span");
+    marker.className = "diff-paragraph-marker";
+
+    const dot = document.createElement("span");
+    dot.className = "diff-paragraph-marker-dot";
+    dot.textContent = "●";
+
+    const num = document.createElement("span");
+    num.className = "diff-paragraph-marker-num";
     num.textContent = this.getSuperscriptNumber(number);
+
+    marker.append(dot, num);
+    return marker;
   }
 
   /**
@@ -1802,14 +1836,12 @@ export class HybridDiffModal extends Modal {
       return;
     }
 
-    const leftLayers = this.leftDiffLayers;
-    const rightLayers = this.rightDiffLayers;
-    if (!leftLayers?.default || !leftLayers.hover || !leftLayers.complete) {
+    const leftContentEl = this.leftDiffContentEl;
+    const rightContentEl = this.rightDiffContentEl;
+    if (!leftContentEl || !rightContentEl) {
       return;
     }
-    if (!rightLayers?.default || !rightLayers.hover || !rightLayers.complete) {
-      return;
-    }
+    const completeContentEl = this.getOrCreateSharedCompleteDiffContentEl();
 
     const currentOriginal = this.originalEditor ? this.originalEditor.value : this.originalText;
     const currentModified = this.modifiedEditor ? this.modifiedEditor.value : this.modifiedText;
@@ -1831,79 +1863,88 @@ export class HybridDiffModal extends Modal {
       rightMarkerMap.set(m.rightPos, m.number);
     }
 
-    // Clear all layers
-    leftLayers.default.textContent = "";
-    leftLayers.hover.textContent = "";
-    leftLayers.complete.textContent = "";
-    rightLayers.default.textContent = "";
-    rightLayers.hover.textContent = "";
-    rightLayers.complete.textContent = "";
+    type ParagraphMarker = { pos: number; number: number };
+    const toSortedMarkers = (map: Map<number, number>): ParagraphMarker[] =>
+      Array.from(map, ([pos, number]) => ({ pos, number })).sort((a, b) => a.pos - b.pos);
+
+    const leftMarkers = toSortedMarkers(leftMarkerMap);
+    const rightMarkers = toSortedMarkers(rightMarkerMap);
+    const completeMarkers =
+      moreParagraphsSide === "right"
+        ? rightMarkers
+        : moreParagraphsSide === "left"
+          ? leftMarkers
+          : [];
+
+    // Clear all cached content
+    leftContentEl.textContent = "";
+    rightContentEl.textContent = "";
+    completeContentEl.textContent = "";
+
+    const leftFrag = document.createDocumentFragment();
+    const rightFrag = document.createDocumentFragment();
+    const completeFrag = document.createDocumentFragment();
 
     // Track positions as we render
     let leftPos = 0;
     let rightPos = 0;
 
-    // Helper to render text with markers interspersed
+    const appendText = (target: Node, text: string, cssClass?: string) => {
+      if (!text) {
+        return;
+      }
+
+      if (cssClass) {
+        const span = document.createElement("span");
+        span.className = cssClass;
+        span.textContent = text;
+        target.appendChild(span);
+        return;
+      }
+
+      target.appendChild(document.createTextNode(text));
+    };
+
     const renderTextWithMarkers = (
-      container: HTMLElement,
+      target: Node,
       text: string,
       startPos: number,
-      markerMap: Map<number, number>,
+      markerList: ParagraphMarker[],
+      cursor: { idx: number },
       cssClass?: string
     ) => {
-      let currentPos = startPos;
-      let textOffset = 0;
+      const endPos = startPos + text.length;
 
-      while (textOffset < text.length) {
-        // Check if there's a marker at current position
-        const markerNum = markerMap.get(currentPos);
-        if (markerNum !== undefined) {
-          this.createParagraphMarker(container, markerNum);
-        }
-
-        // Find next marker position within this text
-        let nextMarkerOffset = text.length;
-        for (const [pos] of markerMap) {
-          if (pos > currentPos && pos < startPos + text.length) {
-            const offset = pos - startPos;
-            if (offset < nextMarkerOffset && offset > textOffset) {
-              nextMarkerOffset = offset;
-            }
-          }
-        }
-
-        // Render text up to next marker (or end)
-        const chunk = text.slice(textOffset, nextMarkerOffset);
-        if (chunk) {
-          const span = container.createSpan();
-          span.textContent = chunk;
-          if (cssClass) {
-            span.addClass(cssClass);
-          }
-        }
-
-        textOffset = nextMarkerOffset;
-        currentPos = startPos + textOffset;
+      // Move cursor to the first marker that could appear in this range.
+      while (cursor.idx < markerList.length && markerList[cursor.idx].pos < startPos) {
+        cursor.idx++;
       }
-      // Note: Don't check for marker at the very end here, as it will be handled
-      // by the next diff part's start position check
+
+      let offset = 0;
+
+      while (cursor.idx < markerList.length) {
+        const marker = markerList[cursor.idx];
+        if (marker.pos >= endPos) {
+          break;
+        }
+
+        const markerOffset = marker.pos - startPos;
+        appendText(target, text.slice(offset, markerOffset), cssClass);
+        target.appendChild(this.createParagraphMarkerElement(marker.number));
+        cursor.idx++;
+        offset = markerOffset;
+      }
+
+      appendText(target, text.slice(offset), cssClass);
     };
 
-    // Helper to render text without markers (for complete layer parts that don't need markers)
-    const renderTextSimple = (
-      container: HTMLElement,
-      text: string,
-      cssClass?: string
-    ) => {
-      const span = container.createSpan();
-      span.textContent = text;
-      if (cssClass) {
-        span.addClass(cssClass);
-      }
+    const renderTextSimple = (target: Node, text: string, cssClass?: string) => {
+      appendText(target, text, cssClass);
     };
 
-    // Determine which marker map to use for complete layer
-    const completeMarkerMap = moreParagraphsSide === 'right' ? rightMarkerMap : leftMarkerMap;
+    const leftMarkerCursor = { idx: 0 };
+    const rightMarkerCursor = { idx: 0 };
+    const completeMarkerCursor = { idx: 0 };
 
     for (const part of diffResult) {
       const partLength = part.value.length;
@@ -1911,77 +1952,66 @@ export class HybridDiffModal extends Modal {
       // Left default: deletions only (show removed and unchanged)
       if (!part.added) {
         renderTextWithMarkers(
-          leftLayers.default,
+          leftFrag,
           part.value,
           leftPos,
-          leftMarkerMap,
-          part.removed ? "diff-deleted-default" : undefined
+          leftMarkers,
+          leftMarkerCursor,
+          part.removed ? "diff-deleted-default" : undefined,
         );
       }
 
       // Right default: additions only (show added and unchanged)
       if (!part.removed) {
         renderTextWithMarkers(
-          rightLayers.default,
+          rightFrag,
           part.value,
           rightPos,
-          rightMarkerMap,
-          part.added ? "diff-added-default" : undefined
-        );
-      }
-
-      // Left hover: deletions underline
-      if (!part.added) {
-        renderTextWithMarkers(
-          leftLayers.hover,
-          part.value,
-          leftPos,
-          leftMarkerMap,
-          part.removed ? "diff-deleted-hover" : undefined
-        );
-      }
-
-      // Right hover: additions underline
-      if (!part.removed) {
-        renderTextWithMarkers(
-          rightLayers.hover,
-          part.value,
-          rightPos,
-          rightMarkerMap,
-          part.added ? "diff-added-hover" : undefined
+          rightMarkers,
+          rightMarkerCursor,
+          part.added ? "diff-added-default" : undefined,
         );
       }
 
       // Complete layer: show everything with markers based on moreParagraphsSide
-      // The complete layer's paragraph structure matches the side with more paragraphs
-      const completeCssClass = part.removed ? "diff-deleted-complete" : (part.added ? "diff-added-complete" : undefined);
+      const completeCssClass = part.removed
+        ? "diff-deleted-complete"
+        : part.added
+          ? "diff-added-complete"
+          : undefined;
 
-      if (moreParagraphsSide === 'right') {
-        // Markers are based on modified text positions
-        // Only render markers for added and unchanged parts (which exist in modified)
+      if (moreParagraphsSide === "right") {
+        // Markers are based on modified text positions.
+        // Only render markers for added and unchanged parts (which exist in modified).
         if (!part.removed) {
-          renderTextWithMarkers(leftLayers.complete, part.value, rightPos, completeMarkerMap, completeCssClass);
-          renderTextWithMarkers(rightLayers.complete, part.value, rightPos, completeMarkerMap, completeCssClass);
+          renderTextWithMarkers(
+            completeFrag,
+            part.value,
+            rightPos,
+            completeMarkers,
+            completeMarkerCursor,
+            completeCssClass,
+          );
         } else {
-          // Removed parts don't have markers (they don't exist in modified)
-          renderTextSimple(leftLayers.complete, part.value, completeCssClass);
-          renderTextSimple(rightLayers.complete, part.value, completeCssClass);
+          renderTextSimple(completeFrag, part.value, completeCssClass);
         }
-      } else if (moreParagraphsSide === 'left') {
-        // Markers are based on original text positions
-        // Only render markers for removed and unchanged parts (which exist in original)
+      } else if (moreParagraphsSide === "left") {
+        // Markers are based on original text positions.
+        // Only render markers for removed and unchanged parts (which exist in original).
         if (!part.added) {
-          renderTextWithMarkers(leftLayers.complete, part.value, leftPos, completeMarkerMap, completeCssClass);
-          renderTextWithMarkers(rightLayers.complete, part.value, leftPos, completeMarkerMap, completeCssClass);
+          renderTextWithMarkers(
+            completeFrag,
+            part.value,
+            leftPos,
+            completeMarkers,
+            completeMarkerCursor,
+            completeCssClass,
+          );
         } else {
-          // Added parts don't have markers (they don't exist in original)
-          renderTextSimple(leftLayers.complete, part.value, completeCssClass);
-          renderTextSimple(rightLayers.complete, part.value, completeCssClass);
+          renderTextSimple(completeFrag, part.value, completeCssClass);
         }
       } else {
-        // No markers needed (equal paragraphs)
-        renderTextSimple(leftLayers.complete, part.value, completeCssClass);
-        renderTextSimple(rightLayers.complete, part.value, completeCssClass);
+        renderTextSimple(completeFrag, part.value, completeCssClass);
       }
 
       // Update positions
@@ -1992,5 +2022,9 @@ export class HybridDiffModal extends Modal {
         rightPos += partLength;
       }
     }
+
+    leftContentEl.appendChild(leftFrag);
+    rightContentEl.appendChild(rightFrag);
+    completeContentEl.appendChild(completeFrag);
   }
 }
