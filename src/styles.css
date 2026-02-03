@@ -318,7 +318,7 @@
   box-sizing: border-box;
   font-family: var(--font-monospace, monospace);
   font-size: var(--hybrid-font-size);
-  line-height: var(--line-height-base);
+  line-height: var(--line-height-base, 1.5);
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -839,12 +839,13 @@
   width: 100%;
   min-height: 100%;
   height: auto;
+  position: relative;
   overflow: visible;
   box-sizing: border-box;
   padding: var(--hybrid-editor-padding);
   font-family: var(--font-monospace, monospace);
   font-size: var(--hybrid-font-size);
-  line-height: 1.5;
+  line-height: var(--line-height-base);
   white-space: pre-wrap;
   word-wrap: break-word;
   pointer-events: none;
@@ -1005,11 +1006,27 @@
 }
 
 /* Paragraph markers for cross-view positioning */
+.diff-paragraph-anchor {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.diff-paragraph-marker-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .diff-paragraph-marker {
-  display: inline;
+  position: absolute;
+  left: 2px;
+  transform: translateY(-0.05em);
   user-select: none;
   pointer-events: none;
-  margin: 0 0.2em;
   white-space: nowrap;
   transition: opacity var(--transition-fast) var(--ease-out);
   opacity: 0.55;
@@ -1018,7 +1035,7 @@
 .diff-paragraph-marker-dot {
   font-size: 0.5em;
   color: var(--text-accent);
-  vertical-align: middle;
+  line-height: 1;
 }
 
 .diff-paragraph-marker-num {
@@ -1026,6 +1043,7 @@
   color: var(--text-accent);
   vertical-align: super;
   font-weight: var(--font-weight-medium);
+  line-height: 1;
   margin-left: 0.05em;
 }
 

@@ -10,7 +10,7 @@
   "diffCompleteOpacity": 28,
   "defaultDiffPosition": "center",
   "ui": {
-    "fontSize": 14,
+    "fontSize": 16,
     "diffGranularity": "word"
   }
 }

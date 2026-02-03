@@ -16,6 +16,8 @@ const COMPLETE_DIFF_STYLE = "background";
 const SMART_DBLCLICK_INSERT_NEWLINES = true;
 
 type DiffLayer = "default" | "hover" | "complete";
+type ScrollSyncMode = "percentage" | "anchored";
+type ScrollMappingPoint = { source: number; target: number };
 
 export interface HybridDiffOptions {
   originalText: string;
@@ -77,6 +79,11 @@ export class HybridDiffModal extends Modal {
   private rightTextareaScrollListener: ((event: Event) => void) | null = null;
   private leftOverlayScrollListener: ((event: Event) => void) | null = null;
   private rightOverlayScrollListener: ((event: Event) => void) | null = null;
+  private leftTextareaWheelListener: ((event: WheelEvent) => void) | null = null;
+  private rightTextareaWheelListener: ((event: WheelEvent) => void) | null = null;
+  private hoverScrollMode: ScrollSyncMode = "percentage";
+  private hoverScrollMapping: { sourceToTarget: ScrollMappingPoint[]; targetToSource: ScrollMappingPoint[] } | null =
+    null;
   private ignoreNextScrollEventTargets = new WeakSet<HTMLElement>();
 
   // Undo history for the editor
@@ -721,7 +728,11 @@ export class HybridDiffModal extends Modal {
           return;
         }
         if (this.rightDiffOverlay) {
-          this.syncScrollByPercentage(this.originalEditor!, this.rightDiffOverlay);
+          this.syncScroll(
+            this.originalEditor!,
+            this.rightDiffOverlay,
+            this.hoverScrollMapping?.sourceToTarget ?? null
+          );
         }
       };
       this.rightOverlayScrollListener = (event) => {
@@ -731,22 +742,46 @@ export class HybridDiffModal extends Modal {
           return;
         }
         if (this.originalEditor) {
-          this.syncScrollByPercentage(this.rightDiffOverlay!, this.originalEditor);
+          this.syncScroll(
+            this.rightDiffOverlay!,
+            this.originalEditor,
+            this.hoverScrollMapping?.targetToSource ?? null
+          );
         }
       };
 
       this.originalEditor.addEventListener('scroll', this.leftTextareaScrollListener);
       this.rightDiffOverlay.addEventListener('scroll', this.rightOverlayScrollListener);
 
-      // Wait for DOM to update, then ensure scrollable space and sync initial position
+      this.leftTextareaWheelListener = (event) => {
+        if (!this.originalEditor || !this.rightDiffOverlay) {
+          return;
+        }
+        if (this.getScrollableHeight(this.originalEditor) > 0) {
+          return;
+        }
+
+        event.preventDefault();
+        this.withScrollBehaviorAuto(this.rightDiffOverlay, () => {
+          this.ignoreNextScrollEvent(this.rightDiffOverlay!);
+          this.rightDiffOverlay!.scrollTop = this.clampScrollTop(
+            this.rightDiffOverlay!,
+            this.rightDiffOverlay!.scrollTop + event.deltaY
+          );
+          this.rightDiffOverlay!.scrollLeft = this.rightDiffOverlay!.scrollLeft + event.deltaX;
+        });
+      };
+      this.originalEditor.addEventListener("wheel", this.leftTextareaWheelListener, { passive: false });
+
+      // Wait for DOM to update, then prepare anchored scroll mapping and sync initial position
       requestAnimationFrame(() => {
         if (this.originalEditor && this.rightDiffOverlay) {
-          this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
-          if (this.modifiedEditor) {
-            this.ensureScrollableSpace(this.modifiedEditor, this.rightDiffOverlay);
-          }
-          // Sync initial scroll position
-          this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
+          this.prepareHoverScrollSync("left");
+          this.syncScroll(
+            this.originalEditor,
+            this.rightDiffOverlay,
+            this.hoverScrollMapping?.sourceToTarget ?? null
+          );
         }
       });
     }
@@ -762,18 +797,17 @@ export class HybridDiffModal extends Modal {
     this.setOverlayScrollable("right", false);
     this.syncOverlayContentTransformToTextarea("right");
 
-    // Restore original scrollable space
-    if (this.originalEditor) {
-      this.restoreScrollableSpace(this.originalEditor);
-    }
-    if (this.modifiedEditor) {
-      this.restoreScrollableSpace(this.modifiedEditor);
-    }
+    this.hoverScrollMode = "percentage";
+    this.hoverScrollMapping = null;
 
     // Remove scroll sync listeners
     if (this.leftTextareaScrollListener && this.originalEditor) {
       this.originalEditor.removeEventListener('scroll', this.leftTextareaScrollListener);
       this.leftTextareaScrollListener = null;
+    }
+    if (this.leftTextareaWheelListener && this.originalEditor) {
+      this.originalEditor.removeEventListener("wheel", this.leftTextareaWheelListener);
+      this.leftTextareaWheelListener = null;
     }
     if (this.rightOverlayScrollListener && this.rightDiffOverlay) {
       this.rightDiffOverlay.removeEventListener('scroll', this.rightOverlayScrollListener);
@@ -800,7 +834,11 @@ export class HybridDiffModal extends Modal {
           return;
         }
         if (this.leftDiffOverlay) {
-          this.syncScrollByPercentage(this.modifiedEditor!, this.leftDiffOverlay);
+          this.syncScroll(
+            this.modifiedEditor!,
+            this.leftDiffOverlay,
+            this.hoverScrollMapping?.sourceToTarget ?? null
+          );
         }
       };
       this.leftOverlayScrollListener = (event) => {
@@ -810,22 +848,46 @@ export class HybridDiffModal extends Modal {
           return;
         }
         if (this.modifiedEditor) {
-          this.syncScrollByPercentage(this.leftDiffOverlay!, this.modifiedEditor);
+          this.syncScroll(
+            this.leftDiffOverlay!,
+            this.modifiedEditor,
+            this.hoverScrollMapping?.targetToSource ?? null
+          );
         }
       };
 
       this.modifiedEditor.addEventListener('scroll', this.rightTextareaScrollListener);
       this.leftDiffOverlay.addEventListener('scroll', this.leftOverlayScrollListener);
 
-      // Wait for DOM to update, then ensure scrollable space and sync initial position
+      this.rightTextareaWheelListener = (event) => {
+        if (!this.modifiedEditor || !this.leftDiffOverlay) {
+          return;
+        }
+        if (this.getScrollableHeight(this.modifiedEditor) > 0) {
+          return;
+        }
+
+        event.preventDefault();
+        this.withScrollBehaviorAuto(this.leftDiffOverlay, () => {
+          this.ignoreNextScrollEvent(this.leftDiffOverlay!);
+          this.leftDiffOverlay!.scrollTop = this.clampScrollTop(
+            this.leftDiffOverlay!,
+            this.leftDiffOverlay!.scrollTop + event.deltaY
+          );
+          this.leftDiffOverlay!.scrollLeft = this.leftDiffOverlay!.scrollLeft + event.deltaX;
+        });
+      };
+      this.modifiedEditor.addEventListener("wheel", this.rightTextareaWheelListener, { passive: false });
+
+      // Wait for DOM to update, then prepare anchored scroll mapping and sync initial position
       requestAnimationFrame(() => {
         if (this.modifiedEditor && this.leftDiffOverlay) {
-          this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
-          if (this.originalEditor) {
-            this.ensureScrollableSpace(this.originalEditor, this.leftDiffOverlay);
-          }
-          // Sync initial scroll position
-          this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
+          this.prepareHoverScrollSync("right");
+          this.syncScroll(
+            this.modifiedEditor,
+            this.leftDiffOverlay,
+            this.hoverScrollMapping?.sourceToTarget ?? null
+          );
         }
       });
     }
@@ -841,18 +903,17 @@ export class HybridDiffModal extends Modal {
     this.setOverlayScrollable("left", false);
     this.syncOverlayContentTransformToTextarea("left");
 
-    // Restore original scrollable space
-    if (this.modifiedEditor) {
-      this.restoreScrollableSpace(this.modifiedEditor);
-    }
-    if (this.originalEditor) {
-      this.restoreScrollableSpace(this.originalEditor);
-    }
+    this.hoverScrollMode = "percentage";
+    this.hoverScrollMapping = null;
 
     // Remove scroll sync listeners
     if (this.rightTextareaScrollListener && this.modifiedEditor) {
       this.modifiedEditor.removeEventListener('scroll', this.rightTextareaScrollListener);
       this.rightTextareaScrollListener = null;
+    }
+    if (this.rightTextareaWheelListener && this.modifiedEditor) {
+      this.modifiedEditor.removeEventListener("wheel", this.rightTextareaWheelListener);
+      this.rightTextareaWheelListener = null;
     }
     if (this.leftOverlayScrollListener && this.leftDiffOverlay) {
       this.leftDiffOverlay.removeEventListener('scroll', this.leftOverlayScrollListener);
@@ -873,6 +934,198 @@ export class HybridDiffModal extends Modal {
     requestAnimationFrame(() => {
       this.ignoreNextScrollEventTargets.delete(targetEl);
     });
+  }
+
+  private getScrollableHeight(el: HTMLElement): number {
+    return Math.max(0, el.scrollHeight - el.clientHeight);
+  }
+
+  private clampScrollTop(el: HTMLElement, scrollTop: number): number {
+    const max = this.getScrollableHeight(el);
+    return Math.max(0, Math.min(max, scrollTop));
+  }
+
+  private normalizeScrollMapping(points: ScrollMappingPoint[]): ScrollMappingPoint[] {
+    const filtered = points
+      .filter((p) => Number.isFinite(p.source) && Number.isFinite(p.target))
+      .map((p) => ({ source: Math.max(0, p.source), target: Math.max(0, p.target) }))
+      .sort((a, b) => a.source - b.source);
+
+    const normalized: ScrollMappingPoint[] = [];
+    let lastSource = -1;
+    let lastTarget = -1;
+
+    for (const point of filtered) {
+      if (point.source <= lastSource) {
+        continue;
+      }
+      if (point.target < lastTarget) {
+        continue;
+      }
+      normalized.push(point);
+      lastSource = point.source;
+      lastTarget = point.target;
+    }
+
+    return normalized;
+  }
+
+  private invertScrollMapping(points: ScrollMappingPoint[]): ScrollMappingPoint[] {
+    return this.normalizeScrollMapping(points.map((p) => ({ source: p.target, target: p.source })));
+  }
+
+  private mapScrollByAnchors(points: ScrollMappingPoint[], sourceScrollTop: number): number {
+    if (points.length === 0) {
+      return sourceScrollTop;
+    }
+
+    if (sourceScrollTop <= points[0].source) {
+      return points[0].target;
+    }
+
+    const last = points[points.length - 1];
+    if (sourceScrollTop >= last.source) {
+      return last.target;
+    }
+
+    // Binary search for the segment containing sourceScrollTop.
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo + 1 < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (points[mid].source <= sourceScrollTop) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+
+    const a = points[lo];
+    const b = points[hi];
+    const denom = b.source - a.source;
+    if (denom <= 0) {
+      return a.target;
+    }
+
+    const t = (sourceScrollTop - a.source) / denom;
+    return a.target + (b.target - a.target) * t;
+  }
+
+  private buildParagraphAnchorScrollMapping(
+    sourceTextarea: HTMLTextAreaElement,
+    sourceContentEl: HTMLElement,
+    targetScrollEl: HTMLElement,
+    targetContentEl: HTMLElement
+  ): ScrollMappingPoint[] {
+    const sourceMax = this.getScrollableHeight(sourceTextarea);
+    const targetMax = this.getScrollableHeight(targetScrollEl);
+
+    const points: ScrollMappingPoint[] = [
+      { source: 0, target: 0 },
+      { source: sourceMax, target: targetMax },
+    ];
+
+    const sourceByMarker = new Map<string, number>();
+    const sourceAnchors = sourceContentEl.querySelectorAll<HTMLElement>(".diff-paragraph-anchor[data-marker]");
+    for (const anchor of Array.from(sourceAnchors)) {
+      const marker = anchor.dataset.marker;
+      if (!marker) {
+        continue;
+      }
+      sourceByMarker.set(marker, Math.max(0, Math.min(sourceMax, anchor.offsetTop)));
+    }
+
+    const targetAnchors = targetContentEl.querySelectorAll<HTMLElement>(".diff-paragraph-anchor[data-marker]");
+    for (const anchor of Array.from(targetAnchors)) {
+      const marker = anchor.dataset.marker;
+      if (!marker) {
+        continue;
+      }
+      const sourcePos = sourceByMarker.get(marker);
+      if (sourcePos === undefined) {
+        continue;
+      }
+      points.push({
+        source: sourcePos,
+        target: Math.max(0, Math.min(targetMax, anchor.offsetTop)),
+      });
+    }
+
+    return this.normalizeScrollMapping(points);
+  }
+
+  private prepareHoverScrollSync(activeSide: "left" | "right"): void {
+    const sourceTextarea = activeSide === "left" ? this.originalEditor : this.modifiedEditor;
+    const sourceContentEl = activeSide === "left" ? this.leftDiffContentEl : this.rightDiffContentEl;
+    const targetScrollEl = activeSide === "left" ? this.rightDiffOverlay : this.leftDiffOverlay;
+    const targetContentEl = this.sharedCompleteDiffContentEl;
+
+    if (!sourceTextarea || !sourceContentEl || !targetScrollEl || !targetContentEl) {
+      this.hoverScrollMode = "percentage";
+      this.hoverScrollMapping = null;
+      return;
+    }
+
+    const mapping = this.buildParagraphAnchorScrollMapping(
+      sourceTextarea,
+      sourceContentEl,
+      targetScrollEl,
+      targetContentEl
+    );
+
+    const sourceScrollable = this.getScrollableHeight(sourceTextarea);
+    const targetScrollable = this.getScrollableHeight(targetScrollEl);
+    const minScrollable = Math.max(1, Math.min(sourceScrollable, targetScrollable));
+    const ratio = Math.max(sourceScrollable, targetScrollable) / minScrollable;
+
+    const minAnchorsForAnchoredMode = 6;
+    const ratioThreshold = 1.5;
+
+    if (mapping.length >= minAnchorsForAnchoredMode && ratio >= ratioThreshold) {
+      this.hoverScrollMode = "anchored";
+      this.hoverScrollMapping = {
+        sourceToTarget: mapping,
+        targetToSource: this.invertScrollMapping(mapping),
+      };
+    } else {
+      this.hoverScrollMode = "percentage";
+      this.hoverScrollMapping = null;
+    }
+
+    this.refreshParagraphMarkerLayers();
+  }
+
+  private syncScroll(sourceEl: HTMLElement, targetEl: HTMLElement, mapping: ScrollMappingPoint[] | null): void {
+    if (!sourceEl || !targetEl || this.isSyncingScroll) {
+      return;
+    }
+
+    this.isSyncingScroll = true;
+
+    try {
+      const sourceScrollableHeight = this.getScrollableHeight(sourceEl);
+      if (sourceScrollableHeight <= 0) {
+        return;
+      }
+
+      let targetScrollTop: number;
+
+      if (this.hoverScrollMode === "anchored" && mapping && mapping.length >= 2) {
+        targetScrollTop = this.mapScrollByAnchors(mapping, sourceEl.scrollTop);
+      } else {
+        const sourceScrollPercentage = sourceEl.scrollTop / sourceScrollableHeight;
+        const targetScrollableHeight = this.getScrollableHeight(targetEl);
+        targetScrollTop = targetScrollableHeight * sourceScrollPercentage;
+      }
+
+      this.withScrollBehaviorAuto(targetEl, () => {
+        this.ignoreNextScrollEvent(targetEl);
+        targetEl.scrollTop = this.clampScrollTop(targetEl, targetScrollTop);
+        targetEl.scrollLeft = sourceEl.scrollLeft;
+      });
+    } finally {
+      this.isSyncingScroll = false;
+    }
   }
 
   private syncScrollByPercentage(sourceEl: HTMLElement, targetEl: HTMLElement): void {
@@ -995,18 +1248,20 @@ export class HybridDiffModal extends Modal {
     // If a complete diff overlay is currently active, re-check scroll space and re-sync position.
     requestAnimationFrame(() => {
       if (this.leftHoverState === "hovered" && this.originalEditor && this.rightDiffOverlay) {
-        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
-        if (this.modifiedEditor) {
-          this.ensureScrollableSpace(this.modifiedEditor, this.rightDiffOverlay);
-        }
-        this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
+        this.prepareHoverScrollSync("left");
+        this.syncScroll(
+          this.originalEditor,
+          this.rightDiffOverlay,
+          this.hoverScrollMapping?.sourceToTarget ?? null
+        );
       }
       if (this.rightHoverState === "hovered" && this.modifiedEditor && this.leftDiffOverlay) {
-        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
-        if (this.originalEditor) {
-          this.ensureScrollableSpace(this.originalEditor, this.leftDiffOverlay);
-        }
-        this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
+        this.prepareHoverScrollSync("right");
+        this.syncScroll(
+          this.modifiedEditor,
+          this.leftDiffOverlay,
+          this.hoverScrollMapping?.sourceToTarget ?? null
+        );
       }
     });
   }
@@ -1411,12 +1666,20 @@ export class HybridDiffModal extends Modal {
     // If a complete diff overlay is currently scrollable, re-check scroll space.
     requestAnimationFrame(() => {
       if (this.leftHoverState === "hovered" && this.originalEditor && this.rightDiffOverlay) {
-        this.ensureScrollableSpace(this.originalEditor, this.rightDiffOverlay);
-        this.syncScrollByPercentage(this.originalEditor, this.rightDiffOverlay);
+        this.prepareHoverScrollSync("left");
+        this.syncScroll(
+          this.originalEditor,
+          this.rightDiffOverlay,
+          this.hoverScrollMapping?.sourceToTarget ?? null
+        );
       }
       if (this.rightHoverState === "hovered" && this.modifiedEditor && this.leftDiffOverlay) {
-        this.ensureScrollableSpace(this.modifiedEditor, this.leftDiffOverlay);
-        this.syncScrollByPercentage(this.modifiedEditor, this.leftDiffOverlay);
+        this.prepareHoverScrollSync("right");
+        this.syncScroll(
+          this.modifiedEditor,
+          this.leftDiffOverlay,
+          this.hoverScrollMapping?.sourceToTarget ?? null
+        );
       }
     });
   }
@@ -1711,6 +1974,66 @@ export class HybridDiffModal extends Modal {
     return marker;
   }
 
+  private createParagraphAnchorElement(number: number): HTMLSpanElement {
+    const anchor = document.createElement("span");
+    anchor.className = "diff-paragraph-anchor";
+    anchor.dataset.marker = String(number);
+    anchor.setAttribute("aria-hidden", "true");
+    return anchor;
+  }
+
+  private renderParagraphMarkerLayer(contentEl: HTMLElement): void {
+    const existing = contentEl.querySelector(".diff-paragraph-marker-layer");
+    if (existing) {
+      existing.remove();
+    }
+
+    const anchors = Array.from(
+      contentEl.querySelectorAll<HTMLElement>(".diff-paragraph-anchor[data-marker]")
+    );
+    if (anchors.length === 0) {
+      return;
+    }
+
+    const layer = document.createElement("div");
+    layer.className = "diff-paragraph-marker-layer";
+
+    for (const anchor of anchors) {
+      const markerStr = anchor.dataset.marker;
+      const markerNumber = markerStr ? parseInt(markerStr, 10) : NaN;
+      if (!Number.isFinite(markerNumber)) {
+        continue;
+      }
+
+      const markerEl = this.createParagraphMarkerElement(markerNumber);
+      markerEl.style.top = `${anchor.offsetTop}px`;
+      layer.appendChild(markerEl);
+    }
+
+    contentEl.appendChild(layer);
+  }
+
+  private refreshParagraphMarkerLayers(): void {
+    const contentEls: Array<HTMLElement | null> = [
+      this.leftDiffContentEl,
+      this.rightDiffContentEl,
+      this.sharedCompleteDiffContentEl,
+    ];
+
+    for (const el of contentEls) {
+      if (!el) {
+        continue;
+      }
+
+      // Skip elements that are not currently visible for layout calculations.
+      if (el.parentElement === null || el.getClientRects().length === 0) {
+        continue;
+      }
+
+      this.renderParagraphMarkerLayer(el);
+    }
+  }
+
   /**
    * Calculate paragraph marker positions for both sides based on diff result.
    * Returns marker info: which side has more paragraphs, and where to insert markers.
@@ -1743,7 +2066,7 @@ export class HybridDiffModal extends Modal {
     }
 
     // Now traverse the diff result to find corresponding positions
-    const markers: Array<{ number: number; leftPos: number; rightPos: number }> = [];
+    let markers: Array<{ number: number; leftPos: number; rightPos: number }> = [];
     let leftPos = 0;
     let rightPos = 0;
     let markerNumber = 1;
@@ -1826,6 +2149,23 @@ export class HybridDiffModal extends Modal {
         leftPos += partLength;
         rightPos += partLength;
       }
+    }
+
+    const maxMarkers = 200;
+    if (markers.length > maxMarkers) {
+      const sampled: Array<{ number: number; leftPos: number; rightPos: number }> = [];
+      const step = (markers.length - 1) / (maxMarkers - 1);
+      let lastIndex = -1;
+      for (let i = 0; i < maxMarkers; i += 1) {
+        const idx = Math.min(markers.length - 1, Math.round(i * step));
+        if (idx === lastIndex) {
+          continue;
+        }
+        lastIndex = idx;
+        const m = markers[idx];
+        sampled.push({ number: sampled.length + 1, leftPos: m.leftPos, rightPos: m.rightPos });
+      }
+      markers = sampled;
     }
 
     return { moreParagraphsSide, markers };
@@ -1930,7 +2270,7 @@ export class HybridDiffModal extends Modal {
 
         const markerOffset = marker.pos - startPos;
         appendText(target, text.slice(offset, markerOffset), cssClass);
-        target.appendChild(this.createParagraphMarkerElement(marker.number));
+        target.appendChild(this.createParagraphAnchorElement(marker.number));
         cursor.idx++;
         offset = markerOffset;
       }
@@ -2026,5 +2366,7 @@ export class HybridDiffModal extends Modal {
     leftContentEl.appendChild(leftFrag);
     rightContentEl.appendChild(rightFrag);
     completeContentEl.appendChild(completeFrag);
+
+    requestAnimationFrame(() => this.refreshParagraphMarkerLayers());
   }
 }
