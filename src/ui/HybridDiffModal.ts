@@ -18,6 +18,7 @@ const SMART_DBLCLICK_INSERT_NEWLINES = true;
 type DiffLayer = "default" | "hover" | "complete";
 type ScrollSyncMode = "percentage" | "anchored";
 type ScrollMappingPoint = { source: number; target: number };
+type ParagraphAnchorHitTarget = { marker: string; centerY: number };
 
 export interface HybridDiffOptions {
   originalText: string;
@@ -86,6 +87,19 @@ export class HybridDiffModal extends Modal {
     null;
   private ignoreNextScrollEventTargets = new WeakSet<HTMLElement>();
 
+  private paragraphAnchorHitTargets: { left: ParagraphAnchorHitTarget[]; right: ParagraphAnchorHitTarget[] } = {
+    left: [],
+    right: [],
+  };
+  private activeParagraphMarker: string | null = null;
+  private pendingParagraphMarkerHover: { side: "left" | "right"; clientX: number; clientY: number } | null = null;
+  private paragraphMarkerHoverFrame: number | null = null;
+  private leftTextareaMouseMoveListener: ((event: MouseEvent) => void) | null = null;
+  private rightTextareaMouseMoveListener: ((event: MouseEvent) => void) | null = null;
+  private leftTextareaMouseLeaveListener: (() => void) | null = null;
+  private rightTextareaMouseLeaveListener: (() => void) | null = null;
+  private paragraphEdgeHintFrame: number | null = null;
+
   // Undo history for the editor
   private history: string[] = [];
   private historyIndex = 0;
@@ -140,6 +154,7 @@ export class HybridDiffModal extends Modal {
     this.createPanels(editorsContainer);
     this.addHybridActions(container);
     this.addKeyboardShortcuts();
+    this.setupParagraphMarkerHoverListeners();
   }
 
   private applyDiffThemeSettings(): void {
@@ -174,6 +189,7 @@ export class HybridDiffModal extends Modal {
     // Sync scroll for left overlay
     originalEditor.addEventListener('scroll', () => {
       this.syncOverlayContentTransformToTextarea("left");
+      this.queueParagraphEdgeHintUpdate();
     });
 
     this.middlePanel = editorsContainer.createDiv({ cls: "hybrid-panel editable" });
@@ -205,6 +221,7 @@ export class HybridDiffModal extends Modal {
     // Sync scroll for right overlay
     modifiedEditor.addEventListener('scroll', () => {
       this.syncOverlayContentTransformToTextarea("right");
+      this.queueParagraphEdgeHintUpdate();
     });
 
     // Treat mouse interaction in side panels as "active" even if focus lands on <body>
@@ -799,6 +816,7 @@ export class HybridDiffModal extends Modal {
 
     this.hoverScrollMode = "percentage";
     this.hoverScrollMapping = null;
+    this.clearParagraphMarkerHover();
 
     // Remove scroll sync listeners
     if (this.leftTextareaScrollListener && this.originalEditor) {
@@ -905,6 +923,7 @@ export class HybridDiffModal extends Modal {
 
     this.hoverScrollMode = "percentage";
     this.hoverScrollMapping = null;
+    this.clearParagraphMarkerHover();
 
     // Remove scroll sync listeners
     if (this.rightTextareaScrollListener && this.modifiedEditor) {
@@ -1125,6 +1144,7 @@ export class HybridDiffModal extends Modal {
       });
     } finally {
       this.isSyncingScroll = false;
+      this.queueParagraphEdgeHintUpdate();
     }
   }
 
@@ -1635,6 +1655,13 @@ export class HybridDiffModal extends Modal {
       this.copyFlashTimer = null;
     }
 
+    if (this.paragraphEdgeHintFrame !== null) {
+      window.cancelAnimationFrame(this.paragraphEdgeHintFrame);
+      this.paragraphEdgeHintFrame = null;
+    }
+
+    this.teardownParagraphMarkerHoverListeners();
+
     // Clean up diff overlay references
     this.leftDiffOverlay = null;
     this.rightDiffOverlay = null;
@@ -1645,6 +1672,386 @@ export class HybridDiffModal extends Modal {
 
     this.contentEl.empty();
   }
+
+  private setupParagraphMarkerHoverListeners(): void {
+    if (this.leftTextareaMouseMoveListener || this.rightTextareaMouseMoveListener) {
+      return;
+    }
+
+    this.leftTextareaMouseMoveListener = (event) => this.queueParagraphMarkerHover("left", event);
+    this.rightTextareaMouseMoveListener = (event) => this.queueParagraphMarkerHover("right", event);
+    this.leftTextareaMouseLeaveListener = () => this.clearParagraphMarkerHover();
+    this.rightTextareaMouseLeaveListener = () => this.clearParagraphMarkerHover();
+
+    if (this.originalEditor && this.leftTextareaMouseMoveListener && this.leftTextareaMouseLeaveListener) {
+      this.originalEditor.addEventListener("mousemove", this.leftTextareaMouseMoveListener);
+      this.originalEditor.addEventListener("mouseleave", this.leftTextareaMouseLeaveListener);
+    }
+
+    if (this.modifiedEditor && this.rightTextareaMouseMoveListener && this.rightTextareaMouseLeaveListener) {
+      this.modifiedEditor.addEventListener("mousemove", this.rightTextareaMouseMoveListener);
+      this.modifiedEditor.addEventListener("mouseleave", this.rightTextareaMouseLeaveListener);
+    }
+  }
+
+  private teardownParagraphMarkerHoverListeners(): void {
+    if (this.originalEditor && this.leftTextareaMouseMoveListener) {
+      this.originalEditor.removeEventListener("mousemove", this.leftTextareaMouseMoveListener);
+    }
+    if (this.originalEditor && this.leftTextareaMouseLeaveListener) {
+      this.originalEditor.removeEventListener("mouseleave", this.leftTextareaMouseLeaveListener);
+    }
+    if (this.modifiedEditor && this.rightTextareaMouseMoveListener) {
+      this.modifiedEditor.removeEventListener("mousemove", this.rightTextareaMouseMoveListener);
+    }
+    if (this.modifiedEditor && this.rightTextareaMouseLeaveListener) {
+      this.modifiedEditor.removeEventListener("mouseleave", this.rightTextareaMouseLeaveListener);
+    }
+
+    this.leftTextareaMouseMoveListener = null;
+    this.rightTextareaMouseMoveListener = null;
+    this.leftTextareaMouseLeaveListener = null;
+    this.rightTextareaMouseLeaveListener = null;
+
+    this.clearParagraphMarkerHover();
+  }
+
+  private queueParagraphMarkerHover(side: "left" | "right", event: MouseEvent): void {
+    if (this.isEditModeEnabled) {
+      return;
+    }
+
+    if (side === "left" && this.leftHoverState !== "hovered") {
+      return;
+    }
+    if (side === "right" && this.rightHoverState !== "hovered") {
+      return;
+    }
+
+    this.pendingParagraphMarkerHover = { side, clientX: event.clientX, clientY: event.clientY };
+
+    if (this.paragraphMarkerHoverFrame !== null) {
+      return;
+    }
+
+    this.paragraphMarkerHoverFrame = window.requestAnimationFrame(() => {
+      this.paragraphMarkerHoverFrame = null;
+
+      const pending = this.pendingParagraphMarkerHover;
+      this.pendingParagraphMarkerHover = null;
+      if (!pending) {
+        return;
+      }
+
+      this.processParagraphMarkerHover(pending.side, pending.clientX, pending.clientY);
+    });
+  }
+
+  private clearParagraphMarkerHover(): void {
+    this.pendingParagraphMarkerHover = null;
+
+    if (this.paragraphMarkerHoverFrame !== null) {
+      window.cancelAnimationFrame(this.paragraphMarkerHoverFrame);
+      this.paragraphMarkerHoverFrame = null;
+    }
+
+    this.setActiveParagraphMarker(null);
+  }
+
+	  private processParagraphMarkerHover(side: "left" | "right", clientX: number, clientY: number): void {
+	    const textarea = side === "left" ? this.originalEditor : this.modifiedEditor;
+	    if (!textarea) {
+	      return;
+	    }
+
+    const rect = textarea.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+
+    if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
+      this.setActiveParagraphMarker(null);
+      return;
+    }
+
+	    const computed = window.getComputedStyle(textarea);
+	    const paddingLeft = parseFloat(computed.paddingLeft) || 0;
+	    const paddingRight = parseFloat(computed.paddingRight) || 0;
+	    const markerZoneWidth = Math.max(16, side === "left" ? paddingRight : paddingLeft);
+	    const inMarkerZone =
+	      side === "left" ? localX >= rect.width - markerZoneWidth : localX <= markerZoneWidth;
+
+	    // Only react when the cursor is in the gutter zone to avoid interfering with selection.
+	    if (!inMarkerZone) {
+	      this.setActiveParagraphMarker(null);
+	      return;
+	    }
+
+    const contentY = localY + textarea.scrollTop;
+    const marker = this.findClosestParagraphMarker(side, contentY);
+    this.setActiveParagraphMarker(marker);
+  }
+
+  private findClosestParagraphMarker(side: "left" | "right", contentY: number): string | null {
+    const targets = side === "left" ? this.paragraphAnchorHitTargets.left : this.paragraphAnchorHitTargets.right;
+    if (targets.length === 0) {
+      return null;
+    }
+
+    // Find the first target with centerY >= contentY.
+    let lo = 0;
+    let hi = targets.length - 1;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (targets[mid].centerY < contentY) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    const idx = lo;
+    const prevIdx = idx > 0 ? idx - 1 : idx;
+    const nextIdx = idx < targets.length ? idx : targets.length - 1;
+
+    const prev = targets[prevIdx];
+    const next = targets[nextIdx];
+
+    const prevDist = Math.abs(prev.centerY - contentY);
+    const nextDist = Math.abs(next.centerY - contentY);
+
+    return prevDist <= nextDist ? prev.marker : next.marker;
+  }
+
+  private setActiveParagraphMarker(marker: string | null): void {
+    if (marker === this.activeParagraphMarker) {
+      return;
+    }
+
+    const prev = this.activeParagraphMarker;
+    this.activeParagraphMarker = marker;
+
+    if (prev) {
+      this.toggleParagraphMarkerActive(prev, false);
+    }
+    if (marker) {
+      this.toggleParagraphMarkerActive(marker, true);
+    }
+
+    this.updateActiveParagraphIndicators();
+    this.queueParagraphEdgeHintUpdate();
+  }
+
+  private toggleParagraphMarkerActive(marker: string, active: boolean): void {
+    const contentEls: Array<HTMLElement | null> = [
+      this.leftDiffContentEl,
+      this.rightDiffContentEl,
+      this.sharedCompleteDiffContentEl,
+    ];
+
+    for (const contentEl of contentEls) {
+      if (!contentEl) {
+        continue;
+      }
+
+      const anchor = contentEl.querySelector<HTMLElement>(`.diff-paragraph-anchor[data-marker="${marker}"]`);
+      if (anchor) {
+        anchor.classList.toggle("is-active", active);
+      }
+
+      const markerEl = contentEl.querySelector<HTMLElement>(`.diff-paragraph-marker[data-marker="${marker}"]`);
+      if (markerEl) {
+        markerEl.classList.toggle("is-active", active);
+      }
+    }
+  }
+
+  private updateActiveParagraphIndicators(): void {
+    const marker = this.activeParagraphMarker;
+    const contentEls: Array<HTMLElement | null> = [
+      this.leftDiffContentEl,
+      this.rightDiffContentEl,
+      this.sharedCompleteDiffContentEl,
+    ];
+
+    for (const contentEl of contentEls) {
+      if (!contentEl) {
+        continue;
+      }
+
+      const existingLayer = contentEl.querySelector<HTMLDivElement>(".diff-paragraph-indicator-layer");
+      if (!marker) {
+        existingLayer?.remove();
+        continue;
+      }
+
+      const anchor = contentEl.querySelector<HTMLElement>(`.diff-paragraph-anchor[data-marker="${marker}"]`);
+      if (!anchor) {
+        existingLayer?.remove();
+        continue;
+      }
+
+      const lineHeightPx = this.getLineHeightPx(contentEl);
+      const centerY = anchor.offsetTop + lineHeightPx / 2;
+      const centerX = anchor.offsetLeft;
+
+      const layer = existingLayer ?? this.createParagraphIndicatorLayer(contentEl);
+      let indicator = layer.querySelector<HTMLDivElement>(".diff-paragraph-indicator");
+      if (!indicator) {
+        indicator = document.createElement("div");
+        indicator.className = "diff-paragraph-indicator";
+        layer.appendChild(indicator);
+      }
+
+      indicator.style.left = `${centerX}px`;
+      indicator.style.top = `${centerY}px`;
+      indicator.style.height = `${lineHeightPx}px`;
+    }
+
+    this.queueParagraphEdgeHintUpdate();
+  }
+
+  private queueParagraphEdgeHintUpdate(): void {
+    if (this.paragraphEdgeHintFrame !== null) {
+      return;
+    }
+
+    this.paragraphEdgeHintFrame = window.requestAnimationFrame(() => {
+      this.paragraphEdgeHintFrame = null;
+      this.updateParagraphEdgeHints();
+    });
+  }
+
+  private updateParagraphEdgeHints(): void {
+    const marker = this.activeParagraphMarker;
+    const sides: Array<"left" | "right"> = ["left", "right"];
+
+    for (const side of sides) {
+      const layer = this.getOrCreateParagraphEdgeHintLayer(side);
+      if (!layer) {
+        continue;
+      }
+
+      const upHint = layer.querySelector<HTMLDivElement>('.diff-paragraph-edge-hint[data-direction="up"]');
+      const downHint = layer.querySelector<HTMLDivElement>('.diff-paragraph-edge-hint[data-direction="down"]');
+      if (!upHint || !downHint) {
+        continue;
+      }
+
+      if (!marker) {
+        upHint.classList.remove("is-active");
+        downHint.classList.remove("is-active");
+        continue;
+      }
+
+      const contentEl = this.getVisibleDiffContentForSide(side);
+      const scrollEl = this.getVisibleScrollContainerForSide(side);
+      if (!contentEl || !scrollEl) {
+        upHint.classList.remove("is-active");
+        downHint.classList.remove("is-active");
+        continue;
+      }
+
+      const anchor = contentEl.querySelector<HTMLElement>(`.diff-paragraph-anchor[data-marker="${marker}"]`);
+      if (!anchor) {
+        upHint.classList.remove("is-active");
+        downHint.classList.remove("is-active");
+        continue;
+      }
+
+      const lineHeightPx = this.getLineHeightPx(contentEl);
+      const anchorTop = anchor.offsetTop;
+      const anchorBottom = anchorTop + lineHeightPx;
+
+      const viewportTop = scrollEl.scrollTop;
+      const viewportBottom = scrollEl.scrollTop + scrollEl.clientHeight;
+
+      const showUp = anchorBottom < viewportTop + 1;
+      const showDown = anchorTop > viewportBottom - 1;
+
+      upHint.classList.toggle("is-active", showUp);
+      downHint.classList.toggle("is-active", showDown);
+    }
+  }
+
+  private getVisibleDiffContentForSide(side: "left" | "right"): HTMLElement | null {
+    const overlay = this.getOverlay(side);
+    if (!overlay) {
+      return null;
+    }
+
+    if (overlay.dataset.activeLayer === "complete") {
+      return this.sharedCompleteDiffContentEl;
+    }
+
+    return this.getOverlayContent(side);
+  }
+
+  private getVisibleScrollContainerForSide(side: "left" | "right"): HTMLElement | null {
+    const overlay = this.getOverlay(side);
+    if (overlay && overlay.classList.contains("scrollable")) {
+      return overlay;
+    }
+
+    return side === "left" ? this.originalEditor : this.modifiedEditor;
+  }
+
+  private getOrCreateParagraphEdgeHintLayer(side: "left" | "right"): HTMLDivElement | null {
+    const panel = side === "left" ? this.leftPanel : this.rightPanel;
+    const panelContent = panel?.querySelector<HTMLDivElement>(".panel-content") ?? null;
+    if (!panelContent) {
+      return null;
+    }
+
+    let layer = panelContent.querySelector<HTMLDivElement>(".diff-paragraph-edge-hint-layer");
+    if (layer) {
+      return layer;
+    }
+
+    layer = document.createElement("div");
+    layer.className = "diff-paragraph-edge-hint-layer";
+
+    const upHint = document.createElement("div");
+    upHint.className = "diff-paragraph-edge-hint";
+    upHint.dataset.direction = "up";
+    layer.appendChild(upHint);
+
+    const downHint = document.createElement("div");
+    downHint.className = "diff-paragraph-edge-hint";
+    downHint.dataset.direction = "down";
+    layer.appendChild(downHint);
+
+    panelContent.appendChild(layer);
+    return layer;
+  }
+
+  private createParagraphIndicatorLayer(contentEl: HTMLElement): HTMLDivElement {
+    const layer = document.createElement("div");
+    layer.className = "diff-paragraph-indicator-layer";
+    contentEl.appendChild(layer);
+    return layer;
+  }
+
+	  private getLineHeightPx(el: HTMLElement): number {
+	    const computed = window.getComputedStyle(el);
+	    const fontSizePx = parseFloat(computed.fontSize) || this.fontSize || 14;
+
+	    const raw = computed.lineHeight;
+	    if (raw === "normal") {
+	      return fontSizePx * 1.5;
+	    }
+
+	    const parsed = parseFloat(raw);
+	    if (!Number.isFinite(parsed) || parsed <= 0) {
+	      return fontSizePx * 1.5;
+	    }
+
+	    // Some themes use unitless line-height (e.g. 1.5). Convert to px.
+	    if (/^[0-9.]+$/.test(raw)) {
+	      return parsed * fontSizePx;
+	    }
+
+	    return parsed;
+	  }
 
   private updateFontSize(newSize: number): void {
     this.fontSize = newSize;
@@ -1703,6 +2110,7 @@ export class HybridDiffModal extends Modal {
     this.isEditModeEnabled = enabled;
     this.syncEditModeToggleUI();
     this.modalEl.classList.toggle("is-edit-mode", this.isEditModeEnabled);
+    this.clearParagraphMarkerHover();
 
     if (this.originalEditor) {
       this.originalEditor.readOnly = !this.isEditModeEnabled;
@@ -1955,22 +2363,11 @@ export class HybridDiffModal extends Modal {
     return String(n).split('').map(d => superscripts[parseInt(d)]).join('');
   }
 
-  /**
-   * Create a paragraph marker element (dot + superscript number)
-   */
   private createParagraphMarkerElement(number: number): HTMLSpanElement {
     const marker = document.createElement("span");
     marker.className = "diff-paragraph-marker";
-
-    const dot = document.createElement("span");
-    dot.className = "diff-paragraph-marker-dot";
-    dot.textContent = "●";
-
-    const num = document.createElement("span");
-    num.className = "diff-paragraph-marker-num";
-    num.textContent = this.getSuperscriptNumber(number);
-
-    marker.append(dot, num);
+    marker.dataset.marker = String(number);
+    marker.setAttribute("aria-hidden", "true");
     return marker;
   }
 
@@ -1982,7 +2379,7 @@ export class HybridDiffModal extends Modal {
     return anchor;
   }
 
-  private renderParagraphMarkerLayer(contentEl: HTMLElement): void {
+	  private renderParagraphMarkerLayer(contentEl: HTMLElement): void {
     const existing = contentEl.querySelector(".diff-paragraph-marker-layer");
     if (existing) {
       existing.remove();
@@ -1992,11 +2389,29 @@ export class HybridDiffModal extends Modal {
       contentEl.querySelectorAll<HTMLElement>(".diff-paragraph-anchor[data-marker]")
     );
     if (anchors.length === 0) {
+      if (contentEl === this.leftDiffContentEl) {
+        this.paragraphAnchorHitTargets.left = [];
+      } else if (contentEl === this.rightDiffContentEl) {
+        this.paragraphAnchorHitTargets.right = [];
+      }
       return;
     }
 
-    const layer = document.createElement("div");
-    layer.className = "diff-paragraph-marker-layer";
+	    const layer = document.createElement("div");
+	    layer.className = "diff-paragraph-marker-layer";
+	    if (contentEl === this.leftDiffContentEl) {
+	      layer.dataset.side = "left";
+	    } else if (contentEl === this.rightDiffContentEl) {
+	      layer.dataset.side = "right";
+	    } else if (contentEl === this.sharedCompleteDiffContentEl) {
+	      if (this.sharedCompleteDiffHostOverlay === this.leftDiffOverlay) {
+	        layer.dataset.side = "left";
+	      } else if (this.sharedCompleteDiffHostOverlay === this.rightDiffOverlay) {
+	        layer.dataset.side = "right";
+	      }
+	    }
+	    const hitTargets: ParagraphAnchorHitTarget[] = [];
+	    const lineHeightPx = this.getLineHeightPx(contentEl);
 
     for (const anchor of anchors) {
       const markerStr = anchor.dataset.marker;
@@ -2006,11 +2421,24 @@ export class HybridDiffModal extends Modal {
       }
 
       const markerEl = this.createParagraphMarkerElement(markerNumber);
-      markerEl.style.top = `${anchor.offsetTop}px`;
+      const centerY = anchor.offsetTop + lineHeightPx / 2;
+      hitTargets.push({ marker: markerStr!, centerY });
+
+      markerEl.style.top = `${centerY}px`;
+      if (markerStr === this.activeParagraphMarker) {
+        markerEl.classList.add("is-active");
+      }
       layer.appendChild(markerEl);
     }
 
     contentEl.appendChild(layer);
+
+    hitTargets.sort((a, b) => a.centerY - b.centerY);
+    if (contentEl === this.leftDiffContentEl) {
+      this.paragraphAnchorHitTargets.left = hitTargets;
+    } else if (contentEl === this.rightDiffContentEl) {
+      this.paragraphAnchorHitTargets.right = hitTargets;
+    }
   }
 
   private refreshParagraphMarkerLayers(): void {
@@ -2032,6 +2460,8 @@ export class HybridDiffModal extends Modal {
 
       this.renderParagraphMarkerLayer(el);
     }
+
+    this.updateActiveParagraphIndicators();
   }
 
   /**

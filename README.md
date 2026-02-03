@@ -18,7 +18,11 @@
 
 ![悬停状态](./assets/悬停状态1.png)
 
-**段落定位**：两侧段落数不同时，分隔处显示 `●¹` `●²` 编号，便于跨栏定位。
+**段落定位（锚点）**：
+
+- 当两侧段落数/文本长度差异较大时，会在差异视图中插入“段落锚点”，用于跨栏对齐定位。
+- 默认仅显示淡淡的小点刻度，不干扰阅读。当鼠标移至锚点附近，两侧同步高亮同一锚点：小点变亮 + 显示一条强调色竖线。
+- 若对应锚点不在当前可视范围，上/下边缘会出现箭头提示其在上方/下方。
 
 ![跨栏定位](./assets/跨栏定位.png)
 
@@ -62,7 +66,11 @@
 
 ![Hover](./assets/悬停状态1.png)
 
-**Paragraph markers**: when paragraph counts differ between sides, markers like `●¹` `●²` appear at separators to help you locate matching content across columns.
+**Paragraph anchors**: 
+
+- When the paragraph count / text length differs significantly between the two sides, the diff view inserts “paragraph anchors” to help align and locate corresponding content across panes.
+- By default, only faint dot ticks are shown to avoid distracting from reading. When you move the cursor near an anchor, the same anchor is highlighted on both sides: the dot brightens and an accent-colored vertical indicator line appears.
+- If the corresponding anchor is outside the current viewport, an arrow will appear at the top/bottom edge to indicate whether it’s above or below.
 
 ![Paragraph markers](./assets/跨栏定位.png)
 
