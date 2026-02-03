@@ -101,6 +101,15 @@
   --diff-remove-emphasis: rgba(207, 34, 46, 0.25);
   --diff-remove-text: #cf222e;
 
+  /* Component Colors */
+  --segmented-bg: rgb(229, 234, 239);
+  --segmented-active-bg: #ffffff;
+  --toggle-knob-bg: #ffffff;
+  --btn-primary-text: #ffffff;
+  --focus-outline: rgba(9, 105, 218, 0.5);
+  --focus-outline-subtle: rgba(9, 105, 218, 0.35);
+  --accent-tint: rgba(9, 105, 218, 0.1);
+
   /* Opacity Scale */
   --opacity-10: 0.1;
   --opacity-15: 0.15;
@@ -125,6 +134,40 @@
   --font-ui: var(--font-interface);
 
   box-shadow: none !important;
+}
+
+.theme-dark .merge-conflict-view {
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-tertiary: #18181b;
+  --border-color: #27272a;
+  --border-subtle: rgba(39, 39, 42, 0.6);
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-muted: #52525b;
+  --accent-color: #58a6ff;
+  --accent-hover: #79c0ff;
+  --success-color: #238636;
+  --success-hover: #2ea043;
+  --danger-color: #f85149;
+  --danger-hover: #ff7b72;
+
+  --diff-add-subtle: rgba(20, 83, 45, 0.3);
+  --diff-add-emphasis: rgba(20, 83, 45, 0.3);
+  --diff-add-text: #bbf7d0;
+  --diff-remove-subtle: rgba(127, 29, 29, 0.3);
+  --diff-remove-emphasis: rgba(127, 29, 29, 0.3);
+  --diff-remove-text: #fecaca;
+
+  --segmented-bg: rgba(255, 255, 255, 0.06);
+  --segmented-active-bg: rgba(255, 255, 255, 0.12);
+  --toggle-knob-bg: #c9d1d9;
+  --btn-primary-text: #ffffff;
+  --focus-outline: rgba(88, 166, 255, 0.6);
+  --focus-outline-subtle: rgba(88, 166, 255, 0.35);
+  --accent-tint: rgba(88, 166, 255, 0.16);
+  --background-modifier-form-field: var(--bg-secondary);
 }
 
 .hybrid-diff-modal {
@@ -229,6 +272,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  container-type: inline-size;
   box-shadow: none;
 }
 
@@ -365,25 +409,46 @@
 }
 
 .hybrid-editor--final {
-  background: var(--background-modifier-form-field, var(--hybrid-bg));
+  background: var(--bg-primary);
+  background-color: var(--bg-primary);
   color: var(--text-normal);
+}
+
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final {
+  background: var(--bg-primary) !important;
+  background-color: var(--bg-primary) !important;
+}
+
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final:focus,
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final:focus-visible,
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final:active {
+  background: var(--bg-primary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 /* Edit mode: show plain text in side panels with editor-like background */
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.original .panel-content,
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.modified .panel-content {
-  background: var(--background-modifier-form-field, var(--hybrid-bg));
+  background: var(--bg-primary);
 }
 
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.original .hybrid-editor--readonly,
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.modified .hybrid-editor--readonly {
-  background: var(--background-modifier-form-field, var(--hybrid-bg));
+  background: var(--bg-primary);
   color: var(--text-normal);
 }
 
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.original textarea.diff-active,
 .hybrid-diff-modal.is-edit-mode .hybrid-panel.modified textarea.diff-active {
-  background-color: var(--background-modifier-form-field, var(--hybrid-bg));
+  background-color: var(--bg-primary);
+}
+
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.original textarea.hybrid-editor--readonly:focus,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.original textarea.hybrid-editor--readonly:focus-visible,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.modified textarea.hybrid-editor--readonly:focus,
+.hybrid-diff-modal.is-edit-mode .hybrid-panel.modified textarea.hybrid-editor--readonly:focus-visible {
+  background: var(--bg-primary) !important;
+  background-color: var(--bg-primary) !important;
 }
 
 .hybrid-diff-modal.is-edit-mode .diff-inline-overlay {
@@ -397,7 +462,8 @@
   border-radius: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: var(--space-3);
   min-height: 38px;
   padding: var(--space-1) var(--space-3);
   box-shadow: none;
@@ -408,6 +474,16 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+}
+
+.merge-conflict-view footer > .footer-section:first-child {
+  flex: 1 1 auto;
+}
+
+.merge-conflict-view footer > .footer-section:last-child {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .merge-conflict-view .divider {
@@ -453,7 +529,7 @@
   left: 2px;
   width: 16px;
   height: 16px;
-  background-color: var(--bg-primary);
+  background-color: var(--toggle-knob-bg);
   border-radius: 50%;
   transition: transform var(--transition-base) var(--ease-in-out);
   box-shadow: var(--shadow-sm);
@@ -468,12 +544,12 @@
 }
 
 .merge-conflict-view .toggle-wrapper:focus-visible .toggle-switch {
-  outline: 3px solid rgba(9, 105, 218, 0.35);
+  outline: 3px solid var(--focus-outline-subtle);
   outline-offset: 2px;
 }
 
 .merge-conflict-view .segmented-control {
-  background-color: rgb(229, 234, 239);
+  background-color: var(--segmented-bg);
   border-radius: var(--radius-md);
   padding: 4px;
   display: flex;
@@ -511,7 +587,7 @@
 }
 
 .merge-conflict-view .segment-btn.is-active {
-  background-color: var(--bg-primary);
+  background-color: var(--segmented-active-bg);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
   font-weight: var(--font-weight-medium);
@@ -540,7 +616,7 @@
 }
 
 .merge-conflict-view .btn:focus-visible {
-  outline: 2px solid rgba(9, 105, 218, 0.5);
+  outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -583,7 +659,7 @@
 .merge-conflict-view .btn-primary {
   background-color: var(--success-color);
   border-color: transparent;
-  color: var(--bg-primary);
+  color: var(--btn-primary-text);
   font-weight: var(--font-weight-medium);
   box-shadow: var(--shadow-sm);
 }
@@ -660,7 +736,7 @@
 
 .merge-conflict-view .hybrid-font-btn.btn-ghost:hover:not(:disabled) {
   color: var(--text-primary);
-  background-color: rgba(9, 105, 218, 0.1);
+  background-color: var(--accent-tint);
 }
 
 .merge-conflict-view .hybrid-font-btn svg {
@@ -672,18 +748,88 @@
    RESPONSIVE DESIGN
    ======================================== */
 
-@media (max-width: 768px) {
+@container (max-width: 860px) {
   .merge-conflict-view footer {
-    flex-direction: column;
-    align-items: stretch;
-    padding: var(--space-3);
-    min-height: auto;
-    gap: var(--space-3);
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
   }
 
   .merge-conflict-view .footer-section {
-    flex-wrap: wrap;
-    gap: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  /* Keep primary actions always visible: make the left side horizontally scrollable if needed. */
+  .merge-conflict-view footer > .footer-section:first-child {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .merge-conflict-view footer > .footer-section:first-child::-webkit-scrollbar {
+    height: 0;
+  }
+}
+
+@container (max-width: 720px) {
+  .merge-conflict-view .divider {
+    display: none;
+  }
+
+  .merge-conflict-view footer .btn {
+    padding: 6px;
+    min-width: 32px;
+    justify-content: center;
+  }
+
+  .merge-conflict-view footer .btn-label,
+  .merge-conflict-view footer .toggle-label,
+  .merge-conflict-view footer .hybrid-font-display {
+    display: none;
+  }
+
+  .merge-conflict-view footer .segmented-control {
+    padding: 2px;
+    height: 28px;
+    min-height: 28px;
+  }
+
+  .merge-conflict-view footer .segment-btn {
+    min-width: 36px;
+    padding: 0 var(--space-1);
+  }
+}
+
+@media (max-width: 768px) {
+  .merge-conflict-view footer {
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .merge-conflict-view footer::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .merge-conflict-view .divider {
+    display: none;
+  }
+
+  .merge-conflict-view footer .btn {
+    padding: 6px;
+    min-width: 32px;
+    justify-content: center;
+  }
+
+  .merge-conflict-view footer .btn-label,
+  .merge-conflict-view footer .toggle-label,
+  .merge-conflict-view footer .hybrid-font-display {
+    display: none;
+  }
+
+  .merge-conflict-view .footer-section {
+    gap: var(--space-2);
   }
 
   .hybrid-diff-container {
@@ -732,7 +878,7 @@
 
 /* Focus visible for keyboard navigation */
 .merge-conflict-view *:focus-visible {
-  outline: 2px solid rgba(9, 105, 218, 0.5);
+  outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -904,6 +1050,14 @@
   background-color: var(--hybrid-diff-added-bg);
 }
 
+.theme-dark .merge-conflict-view .diff-deleted-default {
+  color: var(--hybrid-diff-deleted);
+}
+
+.theme-dark .merge-conflict-view .diff-added-default {
+  color: var(--hybrid-diff-added);
+}
+
 /* Hover state - thin underlines */
 .diff-deleted-hover,
 .diff-inline-overlay[data-active-layer="hover"] .diff-deleted-default {
@@ -949,6 +1103,16 @@
 .diff-added-complete {
   background-color: var(--hybrid-diff-added-bg);
   color: var(--text-normal);
+}
+
+.theme-dark .merge-conflict-view .diff-deleted-complete {
+  background-color: var(--hybrid-diff-deleted-bg);
+  color: var(--hybrid-diff-deleted);
+  text-decoration-color: currentColor;
+}
+
+.theme-dark .merge-conflict-view .diff-added-complete {
+  color: var(--hybrid-diff-added);
 }
 
 /* Default style variants */

@@ -1313,7 +1313,7 @@ export class HybridDiffModal extends Modal {
     toggleWrapper.setAttribute("role", "switch");
     toggleWrapper.setAttribute("tabindex", "0");
     toggleWrapper.createDiv({ cls: "toggle-switch" });
-    this.toggleEditModeLabelEl = toggleWrapper.createEl("span", { text: "" });
+    this.toggleEditModeLabelEl = toggleWrapper.createEl("span", { cls: "toggle-label", text: "" });
     this.syncEditModeToggleUI();
 
     leftSection.createDiv({ cls: "divider" });
@@ -1355,27 +1355,33 @@ export class HybridDiffModal extends Modal {
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
 
-    const clearBtn = rightSection.createEl("button", {
-      cls: "btn btn-ghost hybrid-clear-btn",
-    });
+    const clearBtn = rightSection.createEl("button", { cls: "btn btn-ghost hybrid-clear-btn" });
     clearBtn.setAttribute("type", "button");
-    clearBtn.textContent = this.plugin.t("modal.action.clear");
+    clearBtn.setAttribute("aria-label", this.plugin.t("modal.action.clear"));
+    clearBtn.setAttribute("title", this.plugin.t("modal.action.clear"));
+    const clearIcon = clearBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
+    setIcon(clearIcon, "trash");
+    clearBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.clear") });
 
     rightSection.createDiv({ cls: "divider" });
 
-    const cancelBtn = rightSection.createEl("button", {
-      text: this.plugin.t("modal.action.cancel"),
-      cls: "btn btn-secondary hybrid-cancel-btn",
-    });
+    const cancelBtn = rightSection.createEl("button", { cls: "btn btn-secondary hybrid-cancel-btn" });
     cancelBtn.setAttribute("type", "button");
+    cancelBtn.setAttribute("aria-label", this.plugin.t("modal.action.cancel"));
+    cancelBtn.setAttribute("title", this.plugin.t("modal.action.cancel"));
+    const cancelIcon = cancelBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
+    setIcon(cancelIcon, "x");
+    cancelBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.cancel") });
 
     const applyBtn = rightSection.createEl("button", {
       cls: "btn btn-primary hybrid-apply-btn",
     });
     applyBtn.setAttribute("type", "button");
+    applyBtn.setAttribute("aria-label", this.plugin.t("modal.action.apply"));
+    applyBtn.setAttribute("title", this.plugin.t("modal.action.apply"));
     const applyIcon = applyBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
     setIcon(applyIcon, "check");
-    applyBtn.appendText(this.plugin.t("modal.action.apply"));
+    applyBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.apply") });
 
     const handleToggleClick = () => this.setEditModeEnabled(!this.isEditModeEnabled);
     toggleWrapper.addEventListener("click", handleToggleClick);
