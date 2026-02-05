@@ -130,24 +130,12 @@ export class HybridDiffModal extends Modal {
 
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.addClass("merge-conflict-view");
-    this.modalEl.style.setProperty("--hybrid-font-size", `${this.fontSize}px`);
+    this.titleEl.addClass("hybrid-diff-modal__title");
+    this.contentEl.addClass("hybrid-diff-modal__content");
+    this.modalEl.setCssProps({ "--hybrid-font-size": `${this.fontSize}px` });
     this.applyDiffThemeSettings();
 
-    this.modalEl.style.display = "flex";
-    this.modalEl.style.flexDirection = "column";
-    this.modalEl.style.overflow = "hidden";
-
-    this.titleEl.style.flex = "0 0 auto";
-
-    this.contentEl.style.display = "flex";
-    this.contentEl.style.flexDirection = "column";
-    this.contentEl.style.flex = "1 1 auto";
-    this.contentEl.style.minHeight = "0";
-    this.contentEl.style.overflow = "hidden";
-
     const container = this.contentEl.createDiv({ cls: "hybrid-diff-container" });
-    container.style.flex = "1 1 auto";
-    container.style.minHeight = "0";
 
     const editorsContainer = container.createDiv({ cls: "hybrid-editors-container" });
 
@@ -2061,7 +2049,7 @@ export class HybridDiffModal extends Modal {
 
   private updateFontSize(newSize: number): void {
     this.fontSize = newSize;
-    this.modalEl.style.setProperty("--hybrid-font-size", `${newSize}px`);
+    this.modalEl.setCssProps({ "--hybrid-font-size": `${newSize}px` });
     this.syncFinalEditorMirrorStyles();
     this.syncFinalEditorMirror();
 
