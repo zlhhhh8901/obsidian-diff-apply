@@ -6,7 +6,9 @@
 
 **痛点**：合并两版文本时，常需反复滚动对比、肉眼找差异、逐句复制粘贴——过程繁琐且易出错。
 
-**方案**：三栏浮窗布局（原文 | 编辑区 | 修改版），差异高亮，文本便捷选取，中间栏编辑最终结果。
+**传统方案**：传统 diff 多为代码审查设计；面对写作改稿（长句改写、语义调整、段落重排）时，差异虽能高亮，但“挑选并合并成最终稿”仍不顺手。
+
+**本项目方案**：三栏浮窗（Original | Editor | Modified）+ 差异高亮 + 便捷选取片段，最终在中间栏完成合并并应用回原文。
 
 ### 差异显示
 
@@ -54,7 +56,9 @@
 
 **Problem**: When merging two versions of text, you often have to scroll back and forth, spot differences manually, then copy/paste line by line—tedious and error-prone.
 
-**Solution**: A 3-column floating window layout (Original | Editor | Modified) with diff highlights and convenient text picking. Edit the final result in the middle column.
+**Traditional approach**: Most traditional diffs are designed for code review. For writing revisions (rewriting long sentences, semantic tweaks, paragraph reordering), diffs can highlight changes, but “picking and merging into a final draft” is still not very convenient.
+
+**Solution**: A 3-column floating window layout (Original | Editor | Modified) + diff highlights + convenient snippet picking. Merge the final result in the middle column and apply it back to the original text.
 
 ### Diff Display
 
