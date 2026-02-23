@@ -696,7 +696,7 @@ export class HybridDiffModal extends Modal {
       span.textContent = part.value;
 
       if (part.removed) {
-        span.addClass("diff-deleted-complete");
+        span.addClass("diff-deleted-default");
       } else if (part.added) {
         span.addClass("diff-added-complete");
       }
@@ -719,7 +719,7 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.leftHoverState = 'hovered';
-    this.setOverlayLayer("left", "hover");
+    this.setOverlayLayer("left", "default");
     this.setOverlayLayer("right", "complete");
     this.setOverlayScrollable("left", false);
     this.setOverlayScrollable("right", true);
@@ -826,7 +826,7 @@ export class HybridDiffModal extends Modal {
       return;
     }
     this.rightHoverState = 'hovered';
-    this.setOverlayLayer("right", "hover");
+    this.setOverlayLayer("right", "default");
     this.setOverlayLayer("left", "complete");
     this.setOverlayScrollable("right", false);
     this.setOverlayScrollable("left", true);
@@ -2300,7 +2300,7 @@ export class HybridDiffModal extends Modal {
     }
 
     if (this.leftHoverState === "hovered") {
-      this.setOverlayLayer("left", "hover");
+      this.setOverlayLayer("left", "default");
       this.setOverlayLayer("right", "complete");
       this.setOverlayScrollable("left", false);
       this.setOverlayScrollable("right", true);
@@ -2308,7 +2308,7 @@ export class HybridDiffModal extends Modal {
     }
 
     if (this.rightHoverState === "hovered") {
-      this.setOverlayLayer("right", "hover");
+      this.setOverlayLayer("right", "default");
       this.setOverlayLayer("left", "complete");
       this.setOverlayScrollable("right", false);
       this.setOverlayScrollable("left", true);
@@ -2739,7 +2739,7 @@ export class HybridDiffModal extends Modal {
 
       // Complete layer: show everything with markers based on moreParagraphsSide
       const completeCssClass = part.removed
-        ? "diff-deleted-complete"
+        ? "diff-deleted-default"
         : part.added
           ? "diff-added-complete"
           : undefined;

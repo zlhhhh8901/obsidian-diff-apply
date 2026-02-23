@@ -16,7 +16,7 @@
 
 ![默认状态](./assets/默认状态.png)
 
-**悬停状态**：鼠标悬停时，当前栏高亮弱化为虚线下划，另一栏显示完整增删对比
+**悬停状态**：鼠标悬停时，当前栏保持默认背景高亮，另一栏显示完整增删对比
 
 ![悬停状态](./assets/悬停状态1.png)
 
@@ -66,7 +66,7 @@
 
 ![Default](./assets/默认状态.png)
 
-**Hover**: when hovering, highlights in the current column are softened into dotted underlines, while the other column shows the full add/remove comparison.
+**Hover**: when hovering, the current column keeps its default background highlight, while the other column shows the full add/remove comparison.
 
 ![Hover](./assets/悬停状态1.png)
 

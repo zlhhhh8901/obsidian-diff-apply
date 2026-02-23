@@ -1109,11 +1109,7 @@
 
 /* Complete diff - full styling */
 .diff-deleted-complete {
-  background-color: transparent;
-  color: var(--text-muted);
-  text-decoration: line-through;
-  text-decoration-color: var(--text-muted);
-  text-decoration-thickness: var(--hybrid-diff-strikethrough-thickness, 1px);
+  background-color: var(--hybrid-diff-deleted-bg);
 }
 
 .diff-added-complete {
@@ -1124,7 +1120,6 @@
 .theme-dark .merge-conflict-view .diff-deleted-complete {
   background-color: var(--hybrid-diff-deleted-bg);
   color: var(--hybrid-diff-deleted);
-  text-decoration-color: currentColor;
 }
 
 .theme-dark .merge-conflict-view .diff-added-complete {
@@ -1176,10 +1171,8 @@
 
 /* Complete style variants */
 .hybrid-diff-modal[data-complete-style="text"] .diff-deleted-complete {
-  background-color: transparent;
-  color: var(--text-muted);
-  text-decoration: line-through;
-  text-decoration-color: var(--text-muted);
+  background-color: var(--hybrid-diff-deleted-bg);
+  color: inherit;
 }
 
 .hybrid-diff-modal[data-complete-style="text"] .diff-added-complete {
@@ -1188,10 +1181,8 @@
 }
 
 .hybrid-diff-modal[data-complete-style="underline"] .diff-deleted-complete {
-  background-color: transparent;
-  color: var(--text-muted);
-  text-decoration: line-through;
-  text-decoration-color: var(--text-muted);
+  background-color: var(--hybrid-diff-deleted-bg);
+  color: inherit;
 }
 
 .hybrid-diff-modal[data-complete-style="underline"] .diff-added-complete {
