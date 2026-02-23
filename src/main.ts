@@ -1,7 +1,7 @@
 import { Editor, Notice, Plugin } from "obsidian";
 import type { I18nKey } from "./i18n";
 import { t as tI18n } from "./i18n";
-import { HybridDiffModal } from "./ui/HybridDiffModal";
+import { ReviewDiffModal } from "./ui/ReviewDiffModal";
 
 export type DiffGranularityMode = "word" | "char";
 
@@ -78,12 +78,18 @@ export default class DiffApplyPlugin extends Plugin {
       console.warn(this.t("notice.clipboardReadFailed"), error);
     }
 
+    let initialFinalText = clipboardContent;
+    if (initialFinalText.length === 0) {
+      initialFinalText = selection;
+      new Notice(this.t("notice.clipboardEmptyFallback"));
+    }
+
     const from = editor.getCursor("from");
     const to = editor.getCursor("to");
 
-    const modal = new HybridDiffModal(this.app, {
+    const modal = new ReviewDiffModal(this.app, {
       originalText: selection,
-      modifiedText: clipboardContent,
+      initialFinalText,
       onApply: (finalText) => {
         editor.replaceRange(finalText, from, to);
       },

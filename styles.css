@@ -1322,3 +1322,252 @@
 .diff-paragraph-edge-hint[data-direction="down"]::before {
   border-top: 6px solid var(--interactive-accent, var(--text-accent));
 }
+
+/* ========================================
+   TWO-PANE REVIEW + FINAL WORKBENCH
+   ======================================== */
+
+.review-diff-modal .review-view {
+  height: 100%;
+  overflow: auto;
+  padding: var(--hybrid-editor-padding);
+  box-sizing: border-box;
+  font-family: var(--font-monospace, monospace);
+  font-size: var(--hybrid-font-size);
+  line-height: var(--line-height-base, 1.5);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-normal);
+  scrollbar-color: var(--hybrid-scrollbar-thumb) var(--hybrid-scrollbar-track);
+}
+
+.review-diff-modal .review-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.review-diff-modal .review-view::-webkit-scrollbar-track {
+  background: var(--hybrid-scrollbar-track);
+}
+
+.review-diff-modal .review-view::-webkit-scrollbar-thumb {
+  background: var(--hybrid-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.review-diff-modal .review-view::-webkit-scrollbar-thumb:hover {
+  background: var(--hybrid-scrollbar-thumb-hover);
+}
+
+.review-diff-modal .review-change {
+  color: var(--diff-add-text);
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22em;
+}
+
+.review-diff-modal .review-change:hover {
+  background: color-mix(in srgb, var(--diff-add-subtle) 70%, transparent);
+  border-radius: 2px;
+}
+
+.review-diff-modal .review-delete {
+  display: inline-block;
+  width: 0.65em;
+  height: 0.95em;
+  vertical-align: -0.1em;
+  border-radius: 3px;
+  background: var(--diff-remove-subtle);
+  border: 1px solid color-mix(in srgb, var(--diff-remove-emphasis) 65%, transparent);
+  cursor: pointer;
+}
+
+.review-diff-modal .review-delete:hover {
+  background: var(--diff-remove-emphasis);
+}
+
+.review-tooltip {
+  position: fixed;
+  z-index: var(--z-popover, 50);
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(320px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg, 8px);
+  background: rgba(20, 20, 23, 0.96);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.12));
+  font-family: var(--font-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition:
+    opacity var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    transform var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    visibility 0s linear 150ms;
+  pointer-events: none;
+}
+
+.review-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition:
+    opacity var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    transform var(--transition-fast, 150ms) var(--ease-out, ease-out);
+  pointer-events: auto;
+}
+
+.final-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.final-overlay-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: none;
+}
+
+.final-overlay-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.final-overlay-content {
+  color: transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.final-anchor {
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
+
+.final-hover {
+  background: rgba(255, 165, 0, 0.26);
+  border-radius: 2px;
+}
+
+.final-flash {
+  background: var(--diff-add-emphasis);
+  border-radius: 2px;
+  animation: final-flash-fade 650ms var(--ease-out, ease-out);
+}
+
+@keyframes final-flash-fade {
+  0% {
+    background: var(--diff-add-emphasis);
+  }
+  100% {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+
+.final-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: text-bottom;
+}
+
+.final-caret::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-left: 1px solid var(--text-normal);
+  animation: final-caret-blink 1s steps(2, end) infinite;
+}
+
+@keyframes final-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.final-edge-hint {
+  position: absolute;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--accent-tint);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--transition-fast) var(--ease-out),
+    transform var(--transition-fast) var(--ease-out);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.final-edge-hint.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.final-edge-hint[data-direction="up"] {
+  top: 10px;
+}
+
+.final-edge-hint[data-direction="down"] {
+  bottom: 10px;
+}
+
+.final-snackbar {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition:
+    opacity var(--transition-fast) var(--ease-out),
+    transform var(--transition-fast) var(--ease-out);
+  z-index: 4;
+}
+
+.final-snackbar.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.final-snackbar-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
