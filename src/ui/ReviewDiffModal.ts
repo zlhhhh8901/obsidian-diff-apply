@@ -1,9 +1,36 @@
-import { App, Modal, Notice, setIcon } from "obsidian";
+import { App, Modal, setIcon } from "obsidian";
 import type DiffApplyPlugin from "../main";
 import type { DiffGranularityMode } from "../main";
 import { computeReviewOps } from "../utils/reviewDiff";
+import {
+  canRedoInjection,
+  canUndoInjection,
+  createInjectionHistoryState,
+  pushInjectionTxn,
+  redoInjection,
+  undoInjection,
+  type InjectionHistoryState,
+  type InjectionTxn,
+} from "../utils/injectionHistory";
 
 type FlashRange = { start: number; end: number; kind: "range" | "caret" };
+
+type ReviewTarget =
+  | { kind: "change"; start: number; end: number; originalText: string }
+  | { kind: "delete"; pos: number; originalText: string };
+
+type ArmedInjectionTarget = {
+  target: ReviewTarget;
+  revisionId: number;
+};
+
+type EditorSnapshot = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+  scrollTop: number;
+  scrollLeft: number;
+};
 
 export interface ReviewDiffOptions {
   originalText: string;
@@ -18,6 +45,7 @@ export class ReviewDiffModal extends Modal {
   private originalText: string;
   private onApply: (finalText: string) => void;
   private plugin: DiffApplyPlugin;
+  private initialFinalText: string;
 
   private fontSize: number;
   private diffGranularity: DiffGranularityMode;
@@ -43,28 +71,18 @@ export class ReviewDiffModal extends Modal {
     | { kind: "delete"; pos: number }
     | null = null;
 
+  private armedInjectionTarget: ArmedInjectionTarget | null = null;
+  private armedTargetElement: HTMLElement | null = null;
+  private revisionId = 0;
+
   private flashRange: FlashRange | null = null;
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
-
   private pendingScrollFrame: number | null = null;
-
   private inputDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private snackbarEl: HTMLDivElement | null = null;
-  private snackbarTextEl: HTMLSpanElement | null = null;
-  private snackbarUndoBtn: HTMLButtonElement | null = null;
-  private snackbarTimer: ReturnType<typeof setTimeout> | null = null;
-
-  private lastUndo:
-    | {
-        beforeValue: string;
-        beforeSelectionStart: number;
-        beforeSelectionEnd: number;
-        beforeScrollTop: number;
-        beforeScrollLeft: number;
-        afterValue: string;
-      }
-    | null = null;
+  private injectionHistory: InjectionHistoryState = createInjectionHistoryState();
+  private undoInjectionBtn: HTMLButtonElement | null = null;
+  private redoInjectionBtn: HTMLButtonElement | null = null;
 
   private fontDisplayEl: HTMLSpanElement | null = null;
   private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
@@ -74,6 +92,7 @@ export class ReviewDiffModal extends Modal {
   private boundHandleReviewPointerOver: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewPointerOut: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewClick: ((event: MouseEvent) => void) | null = null;
+  private boundHandleModalKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private boundHandleTooltipPointerEnter: (() => void) | null = null;
   private boundHandleTooltipPointerLeave: (() => void) | null = null;
 
@@ -84,12 +103,8 @@ export class ReviewDiffModal extends Modal {
     this.plugin = opts.plugin;
     this.fontSize = opts.fontSize || 14;
     this.diffGranularity = opts.diffGranularity ?? "word";
-
-    const initial = opts.initialFinalText ?? "";
-    this.initialFinalText = initial;
+    this.initialFinalText = opts.initialFinalText ?? "";
   }
-
-  private initialFinalText: string;
 
   onOpen(): void {
     this.titleEl.empty();
@@ -112,9 +127,10 @@ export class ReviewDiffModal extends Modal {
     this.createPanels(editorsContainer);
     this.addActions(container);
     this.createTooltip();
-    this.createSnackbar();
+    this.setupKeyboardShortcuts();
 
     this.renderAll({ immediate: true });
+    this.updateInjectionHistoryControls();
   }
 
   private createPanels(editorsContainer: HTMLElement): void {
@@ -143,7 +159,7 @@ export class ReviewDiffModal extends Modal {
     this.boundHandleFinalScroll = () => this.syncFinalOverlayScrollAndEdgeHints();
     finalEditor.addEventListener("scroll", this.boundHandleFinalScroll);
 
-    this.boundHandleFinalInput = () => this.queueRecompute();
+    this.boundHandleFinalInput = () => this.handleFinalInput();
     finalEditor.addEventListener("input", this.boundHandleFinalInput);
 
     this.boundHandleReviewPointerOver = (event) => this.handleReviewPointerOver(event);
@@ -210,6 +226,41 @@ export class ReviewDiffModal extends Modal {
     }
   }
 
+  private createTooltip(): void {
+    const tooltip = document.createElement("div");
+    tooltip.className = "review-tooltip";
+    tooltip.toggleClass("is-visible", false);
+    const content = document.createElement("div");
+    content.className = "review-tooltip-content";
+    tooltip.appendChild(content);
+    document.body.appendChild(tooltip);
+
+    this.tooltipEl = tooltip;
+    this.tooltipContentEl = content;
+
+    this.boundHandleTooltipPointerEnter = () => this.cancelHideTooltip();
+    this.boundHandleTooltipPointerLeave = () => this.scheduleHideTooltip();
+    tooltip.addEventListener("pointerenter", this.boundHandleTooltipPointerEnter);
+    tooltip.addEventListener("pointerleave", this.boundHandleTooltipPointerLeave);
+  }
+
+  private handleFinalInput(): void {
+    this.markFinalContentChanged({ immediateRender: false });
+  }
+
+  private markFinalContentChanged(opts: { immediateRender: boolean }): void {
+    this.revisionId += 1;
+    this.clearArmedTarget();
+    this.updateInjectionHistoryControls();
+
+    if (opts.immediateRender) {
+      this.renderAll({ immediate: true });
+      return;
+    }
+
+    this.queueRecompute();
+  }
+
   private queueRecompute(): void {
     if (this.inputDebounceTimer) {
       clearTimeout(this.inputDebounceTimer);
@@ -270,7 +321,7 @@ export class ReviewDiffModal extends Modal {
       span.dataset.kind = "delete";
       span.dataset.finalPos = String(op.finalPos);
       span.dataset.originalText = op.originalText;
-      span.textContent = "\u00a0";
+      span.textContent = op.originalText.length > 0 ? op.originalText : " ";
       frag.appendChild(span);
     }
 
@@ -282,8 +333,48 @@ export class ReviewDiffModal extends Modal {
     if (!(target instanceof Element)) {
       return null;
     }
-    const el = target.closest<HTMLElement>(".review-change, .review-delete");
-    return el ?? null;
+    return target.closest<HTMLElement>(".review-change, .review-delete");
+  }
+
+  private parseReviewTarget(el: HTMLElement): ReviewTarget | null {
+    const kind = el.dataset.kind;
+    const originalText = el.dataset.originalText ?? "";
+
+    if (kind === "change") {
+      const start = Number.parseInt(el.dataset.finalStart ?? "", 10);
+      const end = Number.parseInt(el.dataset.finalEnd ?? "", 10);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start) {
+        return null;
+      }
+      return { kind: "change", start, end, originalText };
+    }
+
+    if (kind === "delete") {
+      const pos = Number.parseInt(el.dataset.finalPos ?? "", 10);
+      if (!Number.isFinite(pos) || pos < 0) {
+        return null;
+      }
+      return { kind: "delete", pos, originalText };
+    }
+
+    return null;
+  }
+
+  private isSameTarget(a: ReviewTarget, b: ReviewTarget): boolean {
+    if (a.kind !== b.kind) {
+      return false;
+    }
+    if (a.kind === "change" && b.kind === "change") {
+      return a.start === b.start && a.end === b.end;
+    }
+    if (a.kind === "delete" && b.kind === "delete") {
+      return a.pos === b.pos;
+    }
+    return false;
+  }
+
+  private getTargetAnchorIndex(target: ReviewTarget): number {
+    return target.kind === "delete" ? target.pos : target.start;
   }
 
   private handleReviewPointerOver(event: PointerEvent): void {
@@ -294,7 +385,11 @@ export class ReviewDiffModal extends Modal {
 
     this.tooltipActiveTarget = el;
     this.showTooltipForReviewTarget(el);
-    this.setHoverFromReviewTarget(el);
+
+    const target = this.parseReviewTarget(el);
+    if (target) {
+      this.setHoverFromTarget(target);
+    }
   }
 
   private handleReviewPointerOut(event: PointerEvent): void {
@@ -322,86 +417,287 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
-    event.preventDefault();
-
-    const beforeValue = this.finalEditor.value ?? "";
-    const beforeSelectionStart = this.finalEditor.selectionStart ?? 0;
-    const beforeSelectionEnd = this.finalEditor.selectionEnd ?? 0;
-    const beforeScrollTop = this.finalEditor.scrollTop;
-    const beforeScrollLeft = this.finalEditor.scrollLeft;
-
-    const kind = el.dataset.kind;
-    if (kind === "change") {
-      const start = Number.parseInt(el.dataset.finalStart ?? "", 10);
-      const end = Number.parseInt(el.dataset.finalEnd ?? "", 10);
-      const originalText = el.dataset.originalText ?? "";
-      if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start) {
-        return;
-      }
-      this.applyInjection({ start, end, replacement: originalText });
-    } else if (kind === "delete") {
-      const pos = Number.parseInt(el.dataset.finalPos ?? "", 10);
-      const originalText = el.dataset.originalText ?? "";
-      if (!Number.isFinite(pos) || pos < 0) {
-        return;
-      }
-      this.applyInjection({ start: pos, end: pos, replacement: originalText });
-    } else {
+    const target = this.parseReviewTarget(el);
+    if (!target) {
       return;
     }
 
-    const afterValue = this.finalEditor.value ?? "";
-    this.lastUndo = {
-      beforeValue,
-      beforeSelectionStart,
-      beforeSelectionEnd,
-      beforeScrollTop,
-      beforeScrollLeft,
-      afterValue,
-    };
+    event.preventDefault();
+    this.setHoverFromTarget(target);
 
-    this.showUndoSnackbar();
-    this.renderAll({ immediate: true });
+    const inViewport = this.isTargetInViewport(target);
+    if (inViewport) {
+      this.clearArmedTarget();
+      this.injectTarget(target);
+      return;
+    }
+
+    const isArmedForSameTarget =
+      this.armedInjectionTarget &&
+      this.armedInjectionTarget.revisionId === this.revisionId &&
+      this.isSameTarget(this.armedInjectionTarget.target, target);
+
+    if (isArmedForSameTarget) {
+      this.clearArmedTarget();
+      this.injectTarget(target);
+      return;
+    }
+
+    this.setArmedTarget(target, el);
+    this.scrollAndFlashTarget(target);
   }
 
-  private applyInjection(opts: { start: number; end: number; replacement: string }): void {
+  private setArmedTarget(target: ReviewTarget, el: HTMLElement): void {
+    this.clearArmedTarget();
+    this.armedInjectionTarget = {
+      target,
+      revisionId: this.revisionId,
+    };
+    this.armedTargetElement = el;
+    this.armedTargetElement.classList.add("is-armed");
+  }
+
+  private clearArmedTarget(): void {
+    this.armedInjectionTarget = null;
+    if (this.armedTargetElement) {
+      this.armedTargetElement.classList.remove("is-armed");
+      this.armedTargetElement = null;
+    }
+  }
+
+  private setHoverFromTarget(target: ReviewTarget): void {
+    if (target.kind === "change") {
+      this.hoverState = { kind: "change", start: target.start, end: target.end };
+      this.renderFinalOverlayContent({ anchorIndex: target.start });
+      this.syncFinalOverlayScrollAndEdgeHints();
+      return;
+    }
+
+    this.hoverState = { kind: "delete", pos: target.pos };
+    this.renderFinalOverlayContent({ anchorIndex: target.pos });
+    this.syncFinalOverlayScrollAndEdgeHints();
+  }
+
+  private isTargetInViewport(target: ReviewTarget): boolean {
+    if (!this.finalEditor) {
+      return true;
+    }
+
+    const anchorIndex = this.getTargetAnchorIndex(target);
+    this.renderFinalOverlayContent({ anchorIndex });
+    this.syncFinalOverlayScrollAndEdgeHints();
+
+    if (!this.finalOverlayAnchorEl) {
+      return true;
+    }
+
+    const anchorTop = this.finalOverlayAnchorEl.offsetTop;
+    const viewportTop = this.finalEditor.scrollTop;
+    const viewportBottom = viewportTop + this.finalEditor.clientHeight;
+    return anchorTop >= viewportTop + 1 && anchorTop <= viewportBottom - 1;
+  }
+
+  private scrollAndFlashTarget(target: ReviewTarget): void {
+    if (target.kind === "change") {
+      this.flashInjectedRange(target.start, target.end);
+      this.scrollFinalToIndex(target.start);
+      return;
+    }
+
+    this.flashInjectedRange(target.pos, target.pos);
+    this.scrollFinalToIndex(target.pos);
+  }
+
+  private captureSnapshot(): EditorSnapshot | null {
+    if (!this.finalEditor) {
+      return null;
+    }
+
+    return {
+      value: this.finalEditor.value ?? "",
+      selectionStart: this.finalEditor.selectionStart ?? 0,
+      selectionEnd: this.finalEditor.selectionEnd ?? 0,
+      scrollTop: this.finalEditor.scrollTop,
+      scrollLeft: this.finalEditor.scrollLeft,
+    };
+  }
+
+  private applySnapshot(
+    snapshot: EditorSnapshot,
+    options: { focusEditor?: boolean } = {},
+  ): void {
     if (!this.finalEditor) {
       return;
     }
 
-    const value = this.finalEditor.value ?? "";
-    const safeStart = Math.max(0, Math.min(opts.start, value.length));
-    const safeEnd = Math.max(safeStart, Math.min(opts.end, value.length));
+    const preservedScrollTop = snapshot.scrollTop;
+    const preservedScrollLeft = snapshot.scrollLeft;
+    const shouldFocusEditor = options.focusEditor ?? true;
 
-    const before = value.slice(0, safeStart);
-    const after = value.slice(safeEnd);
-    const nextValue = before + opts.replacement + after;
-    this.finalEditor.value = nextValue;
+    this.finalEditor.value = snapshot.value;
+    this.finalEditor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+    if (shouldFocusEditor) {
+      try {
+        this.finalEditor.focus({ preventScroll: true });
+      } catch (_error) {
+        this.finalEditor.focus();
+      }
+    }
+    this.finalEditor.scrollTop = preservedScrollTop;
+    this.finalEditor.scrollLeft = preservedScrollLeft;
+    this.syncFinalOverlayScrollAndEdgeHints();
 
-    const insertStart = before.length;
-    const insertEnd = insertStart + opts.replacement.length;
-
-    this.flashInjectedRange(insertStart, insertEnd);
-    this.scrollFinalToIndex(insertStart);
-
-    this.finalEditor.focus();
-    this.finalEditor.setSelectionRange(insertEnd, insertEnd);
+    window.requestAnimationFrame(() => {
+      if (!this.finalEditor) {
+        return;
+      }
+      this.finalEditor.scrollTop = preservedScrollTop;
+      this.finalEditor.scrollLeft = preservedScrollLeft;
+      this.syncFinalOverlayScrollAndEdgeHints();
+    });
   }
 
-  private flashInjectedRange(start: number, end: number): void {
-    if (this.flashTimer) {
-      clearTimeout(this.flashTimer);
-      this.flashTimer = null;
+  private injectTarget(target: ReviewTarget): void {
+    if (!this.finalEditor) {
+      return;
     }
 
-    this.flashRange =
-      start === end ? { start, end, kind: "caret" } : { start, end, kind: "range" };
+    const beforeSnapshot = this.captureSnapshot();
+    if (!beforeSnapshot) {
+      return;
+    }
 
-    this.flashTimer = setTimeout(() => {
-      this.flashRange = null;
-      this.flashTimer = null;
-      this.renderFinalOverlayContent({ anchorIndex: this.getHoverAnchorIndex() });
-    }, 650);
+    const currentValue = beforeSnapshot.value;
+    const startRaw = target.kind === "delete" ? target.pos : target.start;
+    const endRaw = target.kind === "delete" ? target.pos : target.end;
+    const replacement = target.originalText;
+
+    const start = Math.max(0, Math.min(startRaw, currentValue.length));
+    const end = Math.max(start, Math.min(endRaw, currentValue.length));
+    const nextValue = currentValue.slice(0, start) + replacement + currentValue.slice(end);
+
+    this.finalEditor.value = nextValue;
+    const caret = start + replacement.length;
+    this.finalEditor.setSelectionRange(caret, caret);
+    this.finalEditor.focus();
+
+    this.flashInjectedRange(start, caret);
+    this.scrollFinalToIndex(start);
+
+    const afterSnapshot = this.captureSnapshot();
+    if (!afterSnapshot) {
+      return;
+    }
+
+    const txn: InjectionTxn = {
+      beforeValue: beforeSnapshot.value,
+      afterValue: afterSnapshot.value,
+      beforeSelectionStart: beforeSnapshot.selectionStart,
+      beforeSelectionEnd: beforeSnapshot.selectionEnd,
+      afterSelectionStart: afterSnapshot.selectionStart,
+      afterSelectionEnd: afterSnapshot.selectionEnd,
+      beforeScrollTop: beforeSnapshot.scrollTop,
+      beforeScrollLeft: beforeSnapshot.scrollLeft,
+      afterScrollTop: afterSnapshot.scrollTop,
+      afterScrollLeft: afterSnapshot.scrollLeft,
+    };
+
+    this.injectionHistory = pushInjectionTxn(this.injectionHistory, txn);
+    this.markFinalContentChanged({ immediateRender: true });
+  }
+
+  private performUndoInjection(): boolean {
+    if (!this.finalEditor) {
+      return false;
+    }
+
+    const currentValue = this.finalEditor.value ?? "";
+    const result = undoInjection(this.injectionHistory, currentValue);
+    if (!result.txn) {
+      return false;
+    }
+
+    const preservedScrollTop = this.finalEditor.scrollTop;
+    const preservedScrollLeft = this.finalEditor.scrollLeft;
+    const shouldFocusEditor = document.activeElement === this.finalEditor;
+
+    this.injectionHistory = result.state;
+    this.applySnapshot({
+      value: result.txn.beforeValue,
+      selectionStart: result.txn.beforeSelectionStart,
+      selectionEnd: result.txn.beforeSelectionEnd,
+      scrollTop: preservedScrollTop,
+      scrollLeft: preservedScrollLeft,
+    }, { focusEditor: shouldFocusEditor });
+    this.markFinalContentChanged({ immediateRender: true });
+    return true;
+  }
+
+  private performRedoInjection(): boolean {
+    if (!this.finalEditor) {
+      return false;
+    }
+
+    const currentValue = this.finalEditor.value ?? "";
+    const result = redoInjection(this.injectionHistory, currentValue);
+    if (!result.txn) {
+      return false;
+    }
+
+    const preservedScrollTop = this.finalEditor.scrollTop;
+    const preservedScrollLeft = this.finalEditor.scrollLeft;
+    const shouldFocusEditor = document.activeElement === this.finalEditor;
+
+    this.injectionHistory = result.state;
+    this.applySnapshot({
+      value: result.txn.afterValue,
+      selectionStart: result.txn.afterSelectionStart,
+      selectionEnd: result.txn.afterSelectionEnd,
+      scrollTop: preservedScrollTop,
+      scrollLeft: preservedScrollLeft,
+    }, { focusEditor: shouldFocusEditor });
+    this.markFinalContentChanged({ immediateRender: true });
+    return true;
+  }
+
+  private setupKeyboardShortcuts(): void {
+    this.boundHandleModalKeyDown = (event) => this.handleModalKeyDown(event);
+    this.modalEl.addEventListener("keydown", this.boundHandleModalKeyDown, { capture: true });
+  }
+
+  private handleModalKeyDown(event: KeyboardEvent): void {
+    const target = event.target;
+    if (!(target instanceof Node) || !this.modalEl.contains(target)) {
+      return;
+    }
+
+    const ctrlOrMeta = event.ctrlKey || event.metaKey;
+    if (!ctrlOrMeta || event.altKey) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    const isUndo = key === "z" && !event.shiftKey;
+    const isRedo = (key === "z" && event.shiftKey) || key === "y";
+
+    if (!isUndo && !isRedo) {
+      return;
+    }
+
+    if (isUndo) {
+      const didHandle = this.performUndoInjection();
+      if (didHandle) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+
+    const didHandle = this.performRedoInjection();
+    if (didHandle) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   }
 
   private getHoverAnchorIndex(): number | null {
@@ -417,7 +713,6 @@ export class ReviewDiffModal extends Modal {
     }
 
     const value = this.finalEditor.value ?? "";
-
     const hoverRange =
       this.hoverState?.kind === "change"
         ? { start: this.hoverState.start, end: this.hoverState.end }
@@ -507,7 +802,6 @@ export class ReviewDiffModal extends Modal {
       }
     }
 
-    // Ensure anchor/caret at end-of-text positions.
     const lastPoint = points[points.length - 1];
     appendAnchorIfNeeded(lastPoint);
     appendCaretIfNeeded(lastPoint);
@@ -519,6 +813,7 @@ export class ReviewDiffModal extends Modal {
     if (!this.finalEditor || !this.finalOverlayScrollEl) {
       return;
     }
+
     this.finalOverlayScrollEl.scrollTop = this.finalEditor.scrollTop;
     this.finalOverlayScrollEl.scrollLeft = this.finalEditor.scrollLeft;
     this.updateEdgeHintsFromAnchor();
@@ -567,6 +862,25 @@ export class ReviewDiffModal extends Modal {
     });
   }
 
+  private flashInjectedRange(start: number, end: number): void {
+    if (this.flashTimer) {
+      clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
+
+    this.flashRange =
+      start === end ? { start, end, kind: "caret" } : { start, end, kind: "range" };
+    this.renderFinalOverlayContent({ anchorIndex: start });
+    this.syncFinalOverlayScrollAndEdgeHints();
+
+    this.flashTimer = setTimeout(() => {
+      this.flashRange = null;
+      this.flashTimer = null;
+      this.renderFinalOverlayContent({ anchorIndex: this.getHoverAnchorIndex() });
+      this.syncFinalOverlayScrollAndEdgeHints();
+    }, 650);
+  }
+
   private clearHover(): void {
     this.hoverState = null;
     this.renderFinalOverlayContent({ anchorIndex: null });
@@ -578,55 +892,16 @@ export class ReviewDiffModal extends Modal {
     this.hideTooltip();
   }
 
-  private setHoverFromReviewTarget(el: HTMLElement): void {
-    const kind = el.dataset.kind;
-    if (kind === "change") {
-      const start = Number.parseInt(el.dataset.finalStart ?? "", 10);
-      const end = Number.parseInt(el.dataset.finalEnd ?? "", 10);
-      if (!Number.isFinite(start) || !Number.isFinite(end)) {
-        return;
-      }
-      this.hoverState = { kind: "change", start, end };
-      this.renderFinalOverlayContent({ anchorIndex: start });
-      this.syncFinalOverlayScrollAndEdgeHints();
-      return;
-    }
-
-    if (kind === "delete") {
-      const pos = Number.parseInt(el.dataset.finalPos ?? "", 10);
-      if (!Number.isFinite(pos)) {
-        return;
-      }
-      this.hoverState = { kind: "delete", pos };
-      this.renderFinalOverlayContent({ anchorIndex: pos });
-      this.syncFinalOverlayScrollAndEdgeHints();
-    }
-  }
-
-  private createTooltip(): void {
-    const tooltip = document.createElement("div");
-    tooltip.className = "review-tooltip";
-    tooltip.toggleClass("is-visible", false);
-    const content = document.createElement("div");
-    content.className = "review-tooltip-content";
-    tooltip.appendChild(content);
-    document.body.appendChild(tooltip);
-
-    this.tooltipEl = tooltip;
-    this.tooltipContentEl = content;
-
-    this.boundHandleTooltipPointerEnter = () => this.cancelHideTooltip();
-    this.boundHandleTooltipPointerLeave = () => this.scheduleHideTooltip();
-    tooltip.addEventListener("pointerenter", this.boundHandleTooltipPointerEnter);
-    tooltip.addEventListener("pointerleave", this.boundHandleTooltipPointerLeave);
-  }
-
   private showTooltipForReviewTarget(target: HTMLElement): void {
     if (!this.tooltipEl || !this.tooltipContentEl) {
       return;
     }
 
     this.cancelHideTooltip();
+    if (target.dataset.kind === "delete") {
+      this.tooltipEl.toggleClass("is-visible", false);
+      return;
+    }
 
     const originalText = target.dataset.originalText ?? "";
     this.tooltipContentEl.textContent =
@@ -636,8 +911,8 @@ export class ReviewDiffModal extends Modal {
 
     const rect = target.getBoundingClientRect();
     const tooltipRect = this.tooltipEl.getBoundingClientRect();
-
     const gap = 8;
+
     let left = rect.left;
     let top = rect.bottom + gap;
 
@@ -647,7 +922,6 @@ export class ReviewDiffModal extends Modal {
     left = Math.max(8, Math.min(maxLeft, left));
     top = Math.max(8, Math.min(maxTop, top));
 
-    // If there isn't enough room below, place it above.
     if (rect.bottom + gap + tooltipRect.height > window.innerHeight - 8) {
       top = Math.max(8, rect.top - gap - tooltipRect.height);
     }
@@ -684,78 +958,6 @@ export class ReviewDiffModal extends Modal {
     this.tooltipActiveTarget = null;
   }
 
-  private createSnackbar(): void {
-    const snackbar = document.createElement("div");
-    snackbar.className = "final-snackbar";
-    snackbar.toggleClass("is-visible", false);
-
-    const text = document.createElement("span");
-    text.className = "final-snackbar-text";
-    text.textContent = "";
-    snackbar.appendChild(text);
-
-    const undoBtn = document.createElement("button");
-    undoBtn.className = "btn btn-secondary final-snackbar-undo";
-    undoBtn.type = "button";
-    undoBtn.textContent = this.plugin.t("modal.action.undo");
-    undoBtn.addEventListener("click", () => this.handleUndoClick());
-    snackbar.appendChild(undoBtn);
-
-    this.modalEl.appendChild(snackbar);
-    this.snackbarEl = snackbar;
-    this.snackbarTextEl = text;
-    this.snackbarUndoBtn = undoBtn;
-  }
-
-  private showUndoSnackbar(): void {
-    if (!this.snackbarEl || !this.snackbarTextEl) {
-      return;
-    }
-
-    if (this.snackbarTimer) {
-      clearTimeout(this.snackbarTimer);
-      this.snackbarTimer = null;
-    }
-
-    this.snackbarTextEl.textContent = this.plugin.t("modal.snackbar.injectionApplied");
-    this.snackbarEl.toggleClass("is-visible", true);
-    this.snackbarTimer = setTimeout(() => this.hideUndoSnackbar(), 5000);
-  }
-
-  private hideUndoSnackbar(): void {
-    if (!this.snackbarEl) {
-      return;
-    }
-    if (this.snackbarTimer) {
-      clearTimeout(this.snackbarTimer);
-      this.snackbarTimer = null;
-    }
-    this.snackbarEl.toggleClass("is-visible", false);
-  }
-
-  private handleUndoClick(): void {
-    if (!this.finalEditor || !this.lastUndo) {
-      return;
-    }
-
-    const current = this.finalEditor.value ?? "";
-    if (current !== this.lastUndo.afterValue) {
-      new Notice(this.plugin.t("modal.notice.undoNotAvailable"));
-      this.hideUndoSnackbar();
-      return;
-    }
-
-    this.finalEditor.value = this.lastUndo.beforeValue;
-    this.finalEditor.scrollTop = this.lastUndo.beforeScrollTop;
-    this.finalEditor.scrollLeft = this.lastUndo.beforeScrollLeft;
-    this.finalEditor.focus();
-    this.finalEditor.setSelectionRange(this.lastUndo.beforeSelectionStart, this.lastUndo.beforeSelectionEnd);
-
-    this.lastUndo = null;
-    this.hideUndoSnackbar();
-    this.renderAll({ immediate: true });
-  }
-
   private addActions(container: HTMLElement): void {
     const footer = container.createEl("footer");
     const leftSection = footer.createDiv({ cls: "footer-section" });
@@ -776,6 +978,7 @@ export class ReviewDiffModal extends Modal {
       btn.addEventListener("click", () => this.setDiffGranularity(mode));
       this.diffGranularityBtnEls[mode] = btn;
     };
+
     createGranularityBtn("word", "modal.diffGranularity.word");
     createGranularityBtn("char", "modal.diffGranularity.char");
     this.updateDiffGranularityUI();
@@ -800,8 +1003,30 @@ export class ReviewDiffModal extends Modal {
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
 
+    const undoInjectionBtn = rightSection.createEl("button", {
+      cls: "btn btn-secondary injection-history-btn",
+      text: this.plugin.t("modal.action.undoInjection"),
+    });
+    undoInjectionBtn.type = "button";
+    undoInjectionBtn.addEventListener("click", () => {
+      this.performUndoInjection();
+    });
+    this.undoInjectionBtn = undoInjectionBtn;
+
+    const redoInjectionBtn = rightSection.createEl("button", {
+      cls: "btn btn-secondary injection-history-btn",
+      text: this.plugin.t("modal.action.redoInjection"),
+    });
+    redoInjectionBtn.type = "button";
+    redoInjectionBtn.addEventListener("click", () => {
+      this.performRedoInjection();
+    });
+    this.redoInjectionBtn = redoInjectionBtn;
+
+    rightSection.createDiv({ cls: "divider" });
+
     const clearBtn = rightSection.createEl("button", { cls: "btn btn-ghost hybrid-clear-btn" });
-    clearBtn.setAttribute("type", "button");
+    clearBtn.type = "button";
     clearBtn.setAttribute("aria-label", this.plugin.t("modal.action.clear"));
     clearBtn.setAttribute("title", this.plugin.t("modal.action.clear"));
     const clearIcon = clearBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
@@ -811,7 +1036,7 @@ export class ReviewDiffModal extends Modal {
     rightSection.createDiv({ cls: "divider" });
 
     const cancelBtn = rightSection.createEl("button", { cls: "btn btn-secondary hybrid-cancel-btn" });
-    cancelBtn.setAttribute("type", "button");
+    cancelBtn.type = "button";
     cancelBtn.setAttribute("aria-label", this.plugin.t("modal.action.cancel"));
     cancelBtn.setAttribute("title", this.plugin.t("modal.action.cancel"));
     const cancelIcon = cancelBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
@@ -821,7 +1046,7 @@ export class ReviewDiffModal extends Modal {
     const applyBtn = rightSection.createEl("button", {
       cls: "btn btn-primary hybrid-apply-btn",
     });
-    applyBtn.setAttribute("type", "button");
+    applyBtn.type = "button";
     applyBtn.setAttribute("aria-label", this.plugin.t("modal.action.apply"));
     applyBtn.setAttribute("title", this.plugin.t("modal.action.apply"));
     const applyIcon = applyBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
@@ -833,8 +1058,7 @@ export class ReviewDiffModal extends Modal {
         return;
       }
       this.finalEditor.value = "";
-      this.finalEditor.dispatchEvent(new Event("input", { bubbles: true }));
-      this.renderAll({ immediate: true });
+      this.markFinalContentChanged({ immediateRender: true });
     });
 
     cancelBtn.addEventListener("click", () => this.close());
@@ -848,6 +1072,22 @@ export class ReviewDiffModal extends Modal {
 
     decreaseBtn.addEventListener("click", () => this.updateFontSize(Math.max(10, this.fontSize - 1)));
     increaseBtn.addEventListener("click", () => this.updateFontSize(Math.min(24, this.fontSize + 1)));
+  }
+
+  private updateInjectionHistoryControls(): void {
+    const currentValue = this.finalEditor?.value ?? "";
+    const canUndo = canUndoInjection(this.injectionHistory, currentValue);
+    const canRedo = canRedoInjection(this.injectionHistory, currentValue);
+
+    if (this.undoInjectionBtn) {
+      this.undoInjectionBtn.disabled = !canUndo;
+      this.undoInjectionBtn.setAttribute("aria-disabled", canUndo ? "false" : "true");
+    }
+
+    if (this.redoInjectionBtn) {
+      this.redoInjectionBtn.disabled = !canRedo;
+      this.redoInjectionBtn.setAttribute("aria-disabled", canRedo ? "false" : "true");
+    }
   }
 
   private updateDiffGranularityUI(): void {
@@ -867,8 +1107,10 @@ export class ReviewDiffModal extends Modal {
     if (mode === this.diffGranularity) {
       return;
     }
+
     this.diffGranularity = mode;
     this.updateDiffGranularityUI();
+    this.clearArmedTarget();
     this.renderAll({ immediate: true });
 
     this.plugin.ui.diffGranularity = mode;
@@ -879,6 +1121,7 @@ export class ReviewDiffModal extends Modal {
     if (newSize === this.fontSize) {
       return;
     }
+
     this.fontSize = newSize;
     this.modalEl.setCssProps({ "--hybrid-font-size": `${this.fontSize}px` });
     if (this.fontDisplayEl) {
@@ -894,6 +1137,8 @@ export class ReviewDiffModal extends Modal {
   }
 
   onClose(): void {
+    this.clearArmedTarget();
+
     if (this.flashTimer) {
       clearTimeout(this.flashTimer);
       this.flashTimer = null;
@@ -909,10 +1154,6 @@ export class ReviewDiffModal extends Modal {
     if (this.tooltipHideTimer) {
       clearTimeout(this.tooltipHideTimer);
       this.tooltipHideTimer = null;
-    }
-    if (this.snackbarTimer) {
-      clearTimeout(this.snackbarTimer);
-      this.snackbarTimer = null;
     }
 
     if (this.finalEditor && this.boundHandleFinalScroll) {
@@ -930,6 +1171,10 @@ export class ReviewDiffModal extends Modal {
     if (this.reviewViewEl && this.boundHandleReviewClick) {
       this.reviewViewEl.removeEventListener("click", this.boundHandleReviewClick);
     }
+    if (this.boundHandleModalKeyDown) {
+      this.modalEl.removeEventListener("keydown", this.boundHandleModalKeyDown, true);
+      this.boundHandleModalKeyDown = null;
+    }
 
     if (this.tooltipEl) {
       if (this.boundHandleTooltipPointerEnter) {
@@ -941,13 +1186,6 @@ export class ReviewDiffModal extends Modal {
       this.tooltipEl.remove();
       this.tooltipEl = null;
       this.tooltipContentEl = null;
-    }
-
-    if (this.snackbarEl) {
-      this.snackbarEl.remove();
-      this.snackbarEl = null;
-      this.snackbarTextEl = null;
-      this.snackbarUndoBtn = null;
     }
 
     this.contentEl.empty();

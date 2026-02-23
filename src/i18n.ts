@@ -2,9 +2,7 @@ const en = {
   "command.hybrid.name": "Hybrid edit selection",
   "menu.hybrid.title": "Hybrid Edit (Hybrid Diff)",
 
-  "notice.selectOriginalSegment": "Select the original text in the note first.",
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
-  "notice.clipboardEmptyFallback": "Clipboard is empty — using the selected text as the initial draft.",
 
   "modal.header.original": "Original",
   "modal.header.editor": "Editor",
@@ -19,6 +17,8 @@ const en = {
   "modal.action.apply": "Apply",
   "modal.action.cancel": "Cancel",
   "modal.action.undo": "Undo",
+  "modal.action.undoInjection": "Undo Injection",
+  "modal.action.redoInjection": "Redo Injection",
   "modal.diffGranularity.label": "Diff:",
   "modal.diffGranularity.word": "Word",
   "modal.diffGranularity.char": "Char",
@@ -34,7 +34,6 @@ const en = {
   "modal.notice.undoNotAvailable": "You've edited the final draft — undo is no longer available.",
   "modal.notice.shortcutsHint": "Shortcuts: Enter to copy selection from focused side pane; Cmd/Ctrl+Z undo; Cmd/Ctrl+Shift+Z or Ctrl+Y redo; Esc closes.",
   "modal.notice.settingsNotAvailable": "Settings are not available yet.",
-  "modal.snackbar.injectionApplied": "Injected from original.",
   "modal.tooltip.originalEmpty": "(Original text is empty)",
 } as const;
 

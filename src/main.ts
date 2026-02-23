@@ -1,4 +1,4 @@
-import { Editor, Notice, Plugin } from "obsidian";
+import { Editor, Plugin } from "obsidian";
 import type { I18nKey } from "./i18n";
 import { t as tI18n } from "./i18n";
 import { ReviewDiffModal } from "./ui/ReviewDiffModal";
@@ -67,7 +67,6 @@ export default class DiffApplyPlugin extends Plugin {
   private async openHybridDiffForSelection(editor: Editor): Promise<void> {
     const selection = editor.getSelection();
     if (!selection || selection.length === 0) {
-      new Notice(this.t("notice.selectOriginalSegment"));
       return;
     }
 
@@ -81,7 +80,6 @@ export default class DiffApplyPlugin extends Plugin {
     let initialFinalText = clipboardContent;
     if (initialFinalText.length === 0) {
       initialFinalText = selection;
-      new Notice(this.t("notice.clipboardEmptyFallback"));
     }
 
     const from = editor.getCursor("from");
