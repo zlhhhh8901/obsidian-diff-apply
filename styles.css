@@ -1363,29 +1363,28 @@
   cursor: pointer;
   text-decoration-line: underline;
   text-decoration-style: dashed;
-  text-decoration-thickness: 2.4px;
+  text-decoration-thickness: 2px;
   text-underline-offset: 0.24em;
-  text-decoration-color: color-mix(in srgb, var(--accent-color) 58%, transparent);
+  text-decoration-color: #64b5f6;
 }
 
 .review-diff-modal .review-change:hover {
-  text-decoration-color: color-mix(in srgb, var(--accent-color) 78%, transparent);
+  text-decoration-color: #64b5f6;
 }
 
 .review-diff-modal .review-delete {
   display: inline;
-  color: color-mix(in srgb, var(--accent-color) 10%, var(--text-muted));
-  opacity: 0.76;
+  color: #b0bec5;
   cursor: pointer;
   text-decoration-line: line-through;
-  text-decoration-thickness: 1.8px;
-  text-decoration-color: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-decoration-color: #b0bec5;
 }
 
 .review-diff-modal .review-delete:hover {
-  opacity: 0.92;
-  color: color-mix(in srgb, var(--accent-color) 14%, var(--text-secondary));
-  text-decoration-color: color-mix(in srgb, var(--accent-color) 22%, transparent);
+  color: #b0bec5;
+  text-decoration-color: #b0bec5;
 }
 
 .review-diff-modal .review-change.is-armed,
