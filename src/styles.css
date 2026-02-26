@@ -220,6 +220,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* Reserve space for Obsidian's close (X) button. */
+  padding-right: calc(var(--space-8) + var(--space-3));
 }
 
 .hybrid-diff-modal .brand {
@@ -236,6 +238,48 @@
   color: var(--accent-color);
   width: var(--icon-md);
   height: var(--icon-md);
+}
+
+.merge-conflict-view .merge-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.merge-conflict-view .merge-header-help {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  opacity: 0.85;
+  transition:
+    color var(--transition-fast) var(--ease-out),
+    opacity var(--transition-fast) var(--ease-out);
+}
+
+.merge-conflict-view .merge-header-help:hover {
+  background: transparent;
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.merge-conflict-view .merge-header-help svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.merge-conflict-view .merge-header-help:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .hybrid-diff-container {
@@ -293,17 +337,19 @@
 }
 
 .hybrid-diff-modal .panel-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-tertiary);
   margin-bottom: 0;
   border-bottom: 1px solid var(--border-color);
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
+  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
   user-select: none;
   position: relative;
   line-height: var(--line-height-ui);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .hybrid-diff-modal .panel-header::after {
@@ -312,28 +358,9 @@
 
 .hybrid-panel.editable .panel-header {
   background: var(--bg-secondary);
-  border-bottom-color: var(--border-color);
-}
-
-.hybrid-diff-modal .panel-header__title {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-tertiary);
-  font-weight: var(--font-weight-medium);
-}
-
-.hybrid-diff-modal .panel-header__hint {
-  font-size: var(--font-size-xs);
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-secondary);
-  font-weight: var(--font-weight-normal);
-  line-height: var(--line-height-ui);
-}
-
-.hybrid-panel.editable .panel-header .panel-header__title {
   color: var(--accent-color);
+  font-weight: var(--font-weight-medium);
+  border-bottom-color: var(--border-color);
 }
 
 .hybrid-panel .panel-content {
@@ -902,6 +929,43 @@
 }
 
 .review-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition:
+    opacity var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    transform var(--transition-fast, 150ms) var(--ease-out, ease-out);
+  pointer-events: auto;
+}
+
+.help-tooltip {
+  position: fixed;
+  z-index: var(--z-popover, 50);
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(320px, calc(100vh - 24px));
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg, 8px);
+  background: var(--tooltip-bg, var(--background-secondary-alt, var(--background-secondary, rgba(20, 20, 23, 0.96))));
+  color: var(--tooltip-text, var(--text-normal, rgba(255, 255, 255, 0.92)));
+  border: 1px solid var(--background-modifier-border, rgba(0, 0, 0, 0.12));
+  box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.12));
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition:
+    opacity var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    transform var(--transition-fast, 150ms) var(--ease-out, ease-out),
+    visibility 0s linear 150ms;
+  pointer-events: none;
+}
+
+.help-tooltip.is-visible {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

@@ -38,6 +38,7 @@ export class ReviewDiffModal extends Modal {
   private fontSize: number;
   private diffGranularity: DiffGranularityMode;
 
+  private headerEl: HTMLDivElement | null = null;
   private reviewViewEl: HTMLDivElement | null = null;
   private finalEditor: HTMLTextAreaElement | null = null;
 
@@ -83,6 +84,16 @@ export class ReviewDiffModal extends Modal {
   private boundHandleTooltipPointerEnter: (() => void) | null = null;
   private boundHandleTooltipPointerLeave: (() => void) | null = null;
 
+  private helpButtonEl: HTMLButtonElement | null = null;
+  private helpTooltipEl: HTMLDivElement | null = null;
+  private helpTooltipContentEl: HTMLDivElement | null = null;
+  private helpTooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
+  private boundHandleHelpPointerEnter: (() => void) | null = null;
+  private boundHandleHelpPointerLeave: (() => void) | null = null;
+  private boundHandleHelpTooltipPointerEnter: (() => void) | null = null;
+  private boundHandleHelpTooltipPointerLeave: (() => void) | null = null;
+  private boundHandleWindowResize: (() => void) | null = null;
+
   constructor(app: App, opts: ReviewDiffOptions) {
     super(app);
     this.originalText = opts.originalText;
@@ -96,10 +107,20 @@ export class ReviewDiffModal extends Modal {
   onOpen(): void {
     this.titleEl.empty();
     const header = this.titleEl.createDiv({ cls: "merge-header" });
+    this.headerEl = header;
     const brand = header.createDiv({ cls: "brand" });
     const brandIcon = brand.createSpan({ cls: "brand-icon", attr: { "aria-hidden": "true" } });
     setIcon(brandIcon, "git-merge");
     brand.createEl("span", { text: this.plugin.t("modal.brand.title") });
+
+    const headerActions = header.createDiv({ cls: "merge-header-actions" });
+    const helpBtn = headerActions.createEl("button", { cls: "merge-header-help" });
+    helpBtn.type = "button";
+    setIcon(helpBtn, "help-circle");
+    helpBtn.removeAttribute("aria-label");
+    helpBtn.removeAttribute("title");
+    helpBtn.removeAttribute("data-tooltip-position");
+    this.helpButtonEl = helpBtn;
 
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.addClass("merge-conflict-view");
@@ -114,16 +135,46 @@ export class ReviewDiffModal extends Modal {
     this.createPanels(editorsContainer);
     this.addActions(container);
     this.createTooltip();
+    this.createHelpTooltip();
     this.registerEditorUndoRedoKeymaps();
+    this.boundHandleWindowResize = () => this.syncHeaderPaddingForCloseButton();
+    window.addEventListener("resize", this.boundHandleWindowResize);
+    window.requestAnimationFrame(() => this.syncHeaderPaddingForCloseButton());
 
     this.renderAll({ immediate: true });
+  }
+
+  private syncHeaderPaddingForCloseButton(): void {
+    if (!this.headerEl) {
+      return;
+    }
+
+    const closeButton = this.modalEl.querySelector<HTMLElement>(
+      "button.modal-close-button, .modal-close-button, button[aria-label='Close'], .modal-close",
+    );
+    if (!closeButton) {
+      this.headerEl.style.paddingRight = "";
+      return;
+    }
+
+    const headerRect = this.headerEl.getBoundingClientRect();
+    const closeRect = closeButton.getBoundingClientRect();
+    const overlapsVertically = headerRect.top < closeRect.bottom && headerRect.bottom > closeRect.top;
+
+    if (!overlapsVertically) {
+      this.headerEl.style.paddingRight = "0px";
+      return;
+    }
+
+    const gap = 4;
+    const requiredPadding = Math.max(0, headerRect.right - closeRect.left + gap);
+    this.headerEl.style.paddingRight = `${Math.ceil(requiredPadding)}px`;
   }
 
   private createPanels(editorsContainer: HTMLElement): void {
     const leftPanel = editorsContainer.createDiv({ cls: "hybrid-panel review" });
     const leftHeader = leftPanel.createDiv({ cls: "panel-header" });
-    leftHeader.createDiv({ cls: "panel-header__title", text: this.plugin.t("modal.header.review") });
-    leftHeader.createDiv({ cls: "panel-header__hint", text: this.plugin.t("modal.header.reviewHint") });
+    leftHeader.setText(this.plugin.t("modal.header.review"));
 
     const leftContent = leftPanel.createDiv({ cls: "panel-content" });
     const reviewViewEl = leftContent.createDiv({ cls: "review-view" });
@@ -131,8 +182,7 @@ export class ReviewDiffModal extends Modal {
 
     const rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel editable final" });
     const rightHeader = rightPanel.createDiv({ cls: "panel-header" });
-    rightHeader.createDiv({ cls: "panel-header__title", text: this.plugin.t("modal.header.final") });
-    rightHeader.createDiv({ cls: "panel-header__hint", text: this.plugin.t("modal.header.finalHint") });
+    rightHeader.setText(this.plugin.t("modal.header.final"));
 
     const rightContent = rightPanel.createDiv({ cls: "panel-content" });
     const finalEditor = rightContent.createEl("textarea", {
@@ -234,6 +284,103 @@ export class ReviewDiffModal extends Modal {
     this.boundHandleTooltipPointerLeave = () => this.scheduleHideTooltip();
     tooltip.addEventListener("pointerenter", this.boundHandleTooltipPointerEnter);
     tooltip.addEventListener("pointerleave", this.boundHandleTooltipPointerLeave);
+  }
+
+  private createHelpTooltip(): void {
+    if (!this.helpButtonEl) {
+      return;
+    }
+
+    const tooltip = document.createElement("div");
+    tooltip.className = "help-tooltip";
+    tooltip.toggleClass("is-visible", false);
+    const content = document.createElement("div");
+    content.className = "help-tooltip-content";
+    tooltip.appendChild(content);
+    document.body.appendChild(tooltip);
+
+    this.helpTooltipEl = tooltip;
+    this.helpTooltipContentEl = content;
+    this.renderHelpTooltipContent();
+
+    this.boundHandleHelpPointerEnter = () => this.showHelpTooltip();
+    this.boundHandleHelpPointerLeave = () => this.scheduleHideHelpTooltip();
+    this.helpButtonEl.addEventListener("pointerenter", this.boundHandleHelpPointerEnter);
+    this.helpButtonEl.addEventListener("pointerleave", this.boundHandleHelpPointerLeave);
+
+    this.boundHandleHelpTooltipPointerEnter = () => this.cancelHideHelpTooltip();
+    this.boundHandleHelpTooltipPointerLeave = () => this.scheduleHideHelpTooltip();
+    tooltip.addEventListener("pointerenter", this.boundHandleHelpTooltipPointerEnter);
+    tooltip.addEventListener("pointerleave", this.boundHandleHelpTooltipPointerLeave);
+  }
+
+  private renderHelpTooltipContent(): void {
+    if (!this.helpTooltipContentEl) {
+      return;
+    }
+
+    const reviewTitle = this.plugin.t("modal.header.review");
+    const reviewHint = this.plugin.t("modal.header.reviewHint");
+    const finalTitle = this.plugin.t("modal.header.final");
+    const finalHint = this.plugin.t("modal.header.finalHint");
+    this.helpTooltipContentEl.textContent = `${reviewTitle}: ${reviewHint}\n${finalTitle}: ${finalHint}`;
+  }
+
+  private showHelpTooltip(): void {
+    if (!this.helpTooltipEl || !this.helpButtonEl) {
+      return;
+    }
+
+    this.hideTooltip();
+    this.cancelHideHelpTooltip();
+    this.helpTooltipEl.toggleClass("is-visible", true);
+
+    const rect = this.helpButtonEl.getBoundingClientRect();
+    const tooltipRect = this.helpTooltipEl.getBoundingClientRect();
+    const gap = 8;
+
+    let left = rect.right - tooltipRect.width;
+    let top = rect.bottom + gap;
+
+    const maxLeft = window.innerWidth - tooltipRect.width - 8;
+    const maxTop = window.innerHeight - tooltipRect.height - 8;
+
+    left = Math.max(8, Math.min(maxLeft, left));
+    top = Math.max(8, Math.min(maxTop, top));
+
+    if (rect.bottom + gap + tooltipRect.height > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - gap - tooltipRect.height);
+    }
+
+    this.helpTooltipEl.style.left = `${left}px`;
+    this.helpTooltipEl.style.top = `${top}px`;
+  }
+
+  private scheduleHideHelpTooltip(): void {
+    if (!this.helpTooltipEl) {
+      return;
+    }
+    if (this.helpTooltipHideTimer) {
+      clearTimeout(this.helpTooltipHideTimer);
+    }
+    this.helpTooltipHideTimer = setTimeout(() => {
+      this.helpTooltipHideTimer = null;
+      this.hideHelpTooltip();
+    }, 120);
+  }
+
+  private cancelHideHelpTooltip(): void {
+    if (this.helpTooltipHideTimer) {
+      clearTimeout(this.helpTooltipHideTimer);
+      this.helpTooltipHideTimer = null;
+    }
+  }
+
+  private hideHelpTooltip(): void {
+    if (!this.helpTooltipEl) {
+      return;
+    }
+    this.helpTooltipEl.toggleClass("is-visible", false);
   }
 
   private handleFinalInput(): void {
@@ -867,6 +1014,7 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
+    this.hideHelpTooltip();
     this.cancelHideTooltip();
 
     const originalText = target.dataset.originalText ?? "";
@@ -1050,6 +1198,12 @@ export class ReviewDiffModal extends Modal {
 
   onClose(): void {
     this.clearArmedTarget();
+    this.cancelHideHelpTooltip();
+
+    if (this.boundHandleWindowResize) {
+      window.removeEventListener("resize", this.boundHandleWindowResize);
+      this.boundHandleWindowResize = null;
+    }
 
     if (this.flashTimer) {
       clearTimeout(this.flashTimer);
@@ -1066,6 +1220,10 @@ export class ReviewDiffModal extends Modal {
     if (this.tooltipHideTimer) {
       clearTimeout(this.tooltipHideTimer);
       this.tooltipHideTimer = null;
+    }
+    if (this.helpTooltipHideTimer) {
+      clearTimeout(this.helpTooltipHideTimer);
+      this.helpTooltipHideTimer = null;
     }
 
     if (this.finalEditor && this.boundHandleFinalScroll) {
@@ -1103,6 +1261,28 @@ export class ReviewDiffModal extends Modal {
       this.tooltipContentEl = null;
     }
 
+    if (this.helpButtonEl) {
+      if (this.boundHandleHelpPointerEnter) {
+        this.helpButtonEl.removeEventListener("pointerenter", this.boundHandleHelpPointerEnter);
+      }
+      if (this.boundHandleHelpPointerLeave) {
+        this.helpButtonEl.removeEventListener("pointerleave", this.boundHandleHelpPointerLeave);
+      }
+      this.helpButtonEl = null;
+    }
+    if (this.helpTooltipEl) {
+      if (this.boundHandleHelpTooltipPointerEnter) {
+        this.helpTooltipEl.removeEventListener("pointerenter", this.boundHandleHelpTooltipPointerEnter);
+      }
+      if (this.boundHandleHelpTooltipPointerLeave) {
+        this.helpTooltipEl.removeEventListener("pointerleave", this.boundHandleHelpTooltipPointerLeave);
+      }
+      this.helpTooltipEl.remove();
+      this.helpTooltipEl = null;
+      this.helpTooltipContentEl = null;
+    }
+
+    this.headerEl = null;
     this.contentEl.empty();
   }
 }

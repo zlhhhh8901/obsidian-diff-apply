@@ -9,6 +9,7 @@ const en = {
   "modal.header.final": "Final",
   "modal.header.finalHint": "Edit result • Apply replaces selection",
   "modal.brand.title": "Diff & Apply",
+  "modal.help.ariaLabel": "How it works",
   "modal.action.apply": "Apply",
   "modal.action.cancel": "Cancel",
   "modal.diffGranularity.word": "Word",
