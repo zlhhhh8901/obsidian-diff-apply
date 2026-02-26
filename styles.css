@@ -842,7 +842,8 @@
   text-decoration-color: var(--review-change-underline);
   transition:
     background-color var(--transition-fast) var(--ease-out),
-    text-decoration-color var(--transition-fast) var(--ease-out);
+    text-decoration-color var(--transition-fast) var(--ease-out),
+    color var(--transition-fast) var(--ease-out);
 }
 
 .review-diff-modal .review-change[data-change-type="insert"] {
@@ -856,7 +857,12 @@
 }
 
 .review-diff-modal .review-change[data-change-type="insert"]:hover {
-  background: var(--diff-add-emphasis);
+  background: var(--diff-remove-emphasis);
+  color: var(--diff-remove-text);
+  text-decoration-line: line-through;
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--diff-remove-text);
 }
 
 .review-diff-modal .review-change[data-change-type="replace"]:hover {
@@ -880,7 +886,13 @@
 }
 
 .review-diff-modal .review-delete:hover {
-  background: var(--diff-remove-emphasis);
+  background: var(--diff-add-emphasis);
+  color: var(--text-normal);
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.24em;
+  text-decoration-color: var(--diff-add-text);
 }
 
 .review-diff-modal .review-change.is-armed,
@@ -890,7 +902,12 @@
 }
 
 .review-diff-modal .review-change.is-armed[data-change-type="insert"] {
-  background: var(--diff-add-emphasis);
+  background: var(--diff-remove-emphasis);
+  color: var(--diff-remove-text);
+  text-decoration-line: line-through;
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--diff-remove-text);
 }
 
 .review-diff-modal .review-change.is-armed[data-change-type="replace"] {
@@ -898,7 +915,13 @@
 }
 
 .review-diff-modal .review-delete.is-armed {
-  background: var(--diff-remove-emphasis);
+  background: var(--diff-add-emphasis);
+  color: var(--text-normal);
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.24em;
+  text-decoration-color: var(--diff-add-text);
 }
 
 .review-tooltip {

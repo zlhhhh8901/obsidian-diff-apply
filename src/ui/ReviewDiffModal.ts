@@ -1017,6 +1017,13 @@ export class ReviewDiffModal extends Modal {
     this.hideHelpTooltip();
     this.cancelHideTooltip();
 
+    const kind = target.dataset.kind ?? "";
+    const changeType = target.dataset.changeType ?? "";
+    if (kind === "delete" || (kind === "change" && changeType === "insert")) {
+      this.tooltipEl.toggleClass("is-visible", false);
+      return;
+    }
+
     const originalText = target.dataset.originalText ?? "";
     const originalBody =
       originalText.length > 0 ? originalText : this.plugin.t("modal.tooltip.originalEmpty");

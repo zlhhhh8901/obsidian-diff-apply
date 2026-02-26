@@ -5,7 +5,7 @@ const en = {
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
 
   "modal.header.review": "Review",
-  "modal.header.reviewHint": "Hover: original • Click: restore • Offscreen: click twice",
+  "modal.header.reviewHint": "Hover: original (replacements only) • Click: restore • Offscreen: click twice",
   "modal.header.final": "Final",
   "modal.header.finalHint": "Edit result • Apply replaces selection",
   "modal.brand.title": "Diff & Apply",
