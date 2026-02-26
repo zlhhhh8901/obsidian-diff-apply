@@ -1,4 +1,4 @@
-import { App, Modal, setIcon } from "obsidian";
+import { App, Modal, setIcon, type KeymapEventHandler } from "obsidian";
 import type DiffApplyPlugin from "../main";
 import type { DiffGranularityMode } from "../main";
 import { computeReviewOps } from "../utils/reviewDiff";
@@ -12,6 +12,12 @@ type ReviewTarget =
 type ArmedInjectionTarget = {
   target: ReviewTarget;
   revisionId: number;
+};
+
+type EditorSnapshot = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
 };
 
 export interface ReviewDiffOptions {
@@ -40,7 +46,6 @@ export class ReviewDiffModal extends Modal {
   private tooltipActiveTarget: HTMLElement | null = null;
   private tooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private finalOverlayEl: HTMLDivElement | null = null;
   private finalOverlayScrollEl: HTMLDivElement | null = null;
   private finalOverlayContentEl: HTMLDivElement | null = null;
   private finalOverlayAnchorEl: HTMLSpanElement | null = null;
@@ -64,9 +69,14 @@ export class ReviewDiffModal extends Modal {
 
   private fontDisplayEl: HTMLSpanElement | null = null;
   private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
+  private scopeHandlers: KeymapEventHandler[] = [];
+  private historyStack: EditorSnapshot[] = [];
+  private historyIndex = -1;
+  private applyingHistory = false;
 
   private boundHandleFinalScroll: (() => void) | null = null;
   private boundHandleFinalInput: (() => void) | null = null;
+  private boundHandleFinalKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private boundHandleReviewPointerOver: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewPointerOut: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewClick: ((event: MouseEvent) => void) | null = null;
@@ -89,7 +99,7 @@ export class ReviewDiffModal extends Modal {
     const brand = header.createDiv({ cls: "brand" });
     const brandIcon = brand.createSpan({ cls: "brand-icon", attr: { "aria-hidden": "true" } });
     setIcon(brandIcon, "git-merge");
-    brand.createEl("span", { text: "Merge conflict resolver" });
+    brand.createEl("span", { text: this.plugin.t("modal.brand.title") });
 
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.addClass("merge-conflict-view");
@@ -104,6 +114,7 @@ export class ReviewDiffModal extends Modal {
     this.createPanels(editorsContainer);
     this.addActions(container);
     this.createTooltip();
+    this.registerEditorUndoRedoKeymaps();
 
     this.renderAll({ immediate: true });
   }
@@ -137,6 +148,9 @@ export class ReviewDiffModal extends Modal {
     this.boundHandleFinalInput = () => this.handleFinalInput();
     finalEditor.addEventListener("input", this.boundHandleFinalInput);
 
+    this.boundHandleFinalKeyDown = (event) => this.handleFinalKeyDown(event);
+    finalEditor.addEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
+
     this.boundHandleReviewPointerOver = (event) => this.handleReviewPointerOver(event);
     this.boundHandleReviewPointerOut = (event) => this.handleReviewPointerOut(event);
     this.boundHandleReviewClick = (event) => this.handleReviewClick(event);
@@ -144,6 +158,8 @@ export class ReviewDiffModal extends Modal {
     reviewViewEl.addEventListener("pointerover", this.boundHandleReviewPointerOver);
     reviewViewEl.addEventListener("pointerout", this.boundHandleReviewPointerOut);
     reviewViewEl.addEventListener("click", this.boundHandleReviewClick);
+
+    this.resetEditorHistory();
   }
 
   private createFinalOverlay(container: HTMLElement): void {
@@ -151,7 +167,6 @@ export class ReviewDiffModal extends Modal {
     const scrollEl = overlayEl.createDiv({ cls: "final-overlay-scroll" });
     const contentEl = scrollEl.createDiv({ cls: "final-overlay-content" });
 
-    this.finalOverlayEl = overlayEl;
     this.finalOverlayScrollEl = scrollEl;
     this.finalOverlayContentEl = contentEl;
 
@@ -220,7 +235,153 @@ export class ReviewDiffModal extends Modal {
   }
 
   private handleFinalInput(): void {
+    if (!this.applyingHistory) {
+      this.pushEditorHistory();
+    }
     this.markFinalContentChanged({ immediateRender: false });
+  }
+
+  private registerEditorUndoRedoKeymaps(): void {
+    const register = (
+      modifiers: ["Mod"] | ["Mod", "Shift"],
+      key: "z" | "y",
+      action: "undo" | "redo"
+    ) =>
+      this.scope.register(modifiers, key, () => this.handleUndoRedoOnFinalEditor(action));
+
+    this.scopeHandlers.push(register(["Mod"], "z", "undo"));
+    this.scopeHandlers.push(register(["Mod", "Shift"], "z", "redo"));
+    this.scopeHandlers.push(register(["Mod"], "y", "redo"));
+  }
+
+  private handleUndoRedoOnFinalEditor(action: "undo" | "redo"): false | void {
+    if (!this.finalEditor || document.activeElement !== this.finalEditor) {
+      return;
+    }
+
+    const changed = action === "undo" ? this.undoHistory() : this.redoHistory();
+    if (!changed) {
+      return false;
+    }
+    return false;
+  }
+
+  private handleFinalKeyDown(event: KeyboardEvent): void {
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    if (!this.finalEditor || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    const isUndo = key === "z" && !event.shiftKey;
+    const isRedo = key === "y" || (key === "z" && event.shiftKey);
+    if (!isUndo && !isRedo) {
+      return;
+    }
+
+    const changed = isUndo ? this.undoHistory() : this.redoHistory();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    if (!changed) {
+      return;
+    }
+  }
+
+  private resetEditorHistory(): void {
+    this.historyStack = [];
+    this.historyIndex = -1;
+    this.pushEditorHistory();
+  }
+
+  private getCurrentEditorSnapshot(): EditorSnapshot | null {
+    if (!this.finalEditor) {
+      return null;
+    }
+
+    return {
+      value: this.finalEditor.value ?? "",
+      selectionStart: this.finalEditor.selectionStart ?? 0,
+      selectionEnd: this.finalEditor.selectionEnd ?? 0,
+    };
+  }
+
+  private pushEditorHistory(): void {
+    const snapshot = this.getCurrentEditorSnapshot();
+    if (!snapshot) {
+      return;
+    }
+
+    const current = this.historyStack[this.historyIndex];
+    if (
+      current &&
+      current.value === snapshot.value &&
+      current.selectionStart === snapshot.selectionStart &&
+      current.selectionEnd === snapshot.selectionEnd
+    ) {
+      return;
+    }
+
+    if (this.historyIndex < this.historyStack.length - 1) {
+      this.historyStack = this.historyStack.slice(0, this.historyIndex + 1);
+    }
+
+    this.historyStack.push(snapshot);
+    this.historyIndex = this.historyStack.length - 1;
+
+    const maxHistory = 300;
+    if (this.historyStack.length > maxHistory) {
+      const trim = this.historyStack.length - maxHistory;
+      this.historyStack.splice(0, trim);
+      this.historyIndex = Math.max(0, this.historyIndex - trim);
+    }
+  }
+
+  private applyEditorSnapshot(snapshot: EditorSnapshot): void {
+    if (!this.finalEditor) {
+      return;
+    }
+
+    this.applyingHistory = true;
+    this.finalEditor.value = snapshot.value;
+    this.finalEditor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+    this.finalEditor.focus();
+    this.applyingHistory = false;
+
+    this.markFinalContentChanged({ immediateRender: true });
+  }
+
+  private undoHistory(): boolean {
+    if (this.historyIndex <= 0) {
+      return false;
+    }
+
+    this.historyIndex -= 1;
+    const snapshot = this.historyStack[this.historyIndex];
+    if (!snapshot) {
+      return false;
+    }
+
+    this.applyEditorSnapshot(snapshot);
+    return true;
+  }
+
+  private redoHistory(): boolean {
+    if (this.historyIndex < 0 || this.historyIndex >= this.historyStack.length - 1) {
+      return false;
+    }
+
+    this.historyIndex += 1;
+    const snapshot = this.historyStack[this.historyIndex];
+    if (!snapshot) {
+      return false;
+    }
+
+    this.applyEditorSnapshot(snapshot);
+    return true;
   }
 
   private markFinalContentChanged(opts: { immediateRender: boolean }): void {
@@ -284,7 +445,6 @@ export class ReviewDiffModal extends Modal {
         span.dataset.finalStart = String(op.finalStart);
         span.dataset.finalEnd = String(op.finalEnd);
         span.dataset.originalText = op.originalText;
-        span.dataset.changeType = op.changeType;
         span.textContent = op.finalText;
         frag.appendChild(span);
         continue;
@@ -500,6 +660,7 @@ export class ReviewDiffModal extends Modal {
     const caret = start + replacement.length;
     this.finalEditor.setSelectionRange(caret, caret);
     this.finalEditor.focus();
+    this.pushEditorHistory();
 
     this.flashInjectedRange(start, caret);
     this.scrollFinalToIndex(start);
@@ -912,6 +1073,13 @@ export class ReviewDiffModal extends Modal {
     if (this.finalEditor && this.boundHandleFinalInput) {
       this.finalEditor.removeEventListener("input", this.boundHandleFinalInput);
     }
+    if (this.finalEditor && this.boundHandleFinalKeyDown) {
+      this.finalEditor.removeEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
+    }
+    for (const handler of this.scopeHandlers) {
+      this.scope.unregister(handler);
+    }
+    this.scopeHandlers = [];
     if (this.reviewViewEl && this.boundHandleReviewPointerOver) {
       this.reviewViewEl.removeEventListener("pointerover", this.boundHandleReviewPointerOver);
     }

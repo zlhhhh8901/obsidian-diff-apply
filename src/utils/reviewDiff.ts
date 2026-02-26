@@ -121,7 +121,6 @@ export function computeReviewOps(
   const parts = mergeAdjacentParts(computeDiffParts(originalText, finalText, granularity));
 
   const ops: ReviewOp[] = [];
-  let originalPos = 0;
   let finalPos = 0;
 
   for (let i = 0; i < parts.length; i += 1) {
@@ -138,7 +137,6 @@ export function computeReviewOps(
         finalStart: finalPos,
         finalEnd: finalPos + len,
       });
-      originalPos += len;
       finalPos += len;
       continue;
     }
@@ -161,7 +159,6 @@ export function computeReviewOps(
         finalEnd: finalPos + addedText.length,
       });
 
-      originalPos += removedText.length;
       finalPos += addedText.length;
       i += 1;
       continue;
@@ -186,7 +183,6 @@ export function computeReviewOps(
         originalText: part.value,
         finalPos,
       });
-      originalPos += len;
       continue;
     }
 
@@ -194,11 +190,7 @@ export function computeReviewOps(
     if (isAdded) {
       finalPos += len;
     }
-    if (isRemoved) {
-      originalPos += len;
-    }
   }
 
   return ops;
 }
-
