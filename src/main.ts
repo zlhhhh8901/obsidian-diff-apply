@@ -5,7 +5,14 @@ import { ReviewDiffModal } from "./ui/ReviewDiffModal";
 
 export type DiffGranularityMode = "word" | "char";
 
-type PluginData = Record<string, unknown>;
+interface PersistedPluginData {
+  ui: DiffApplyPluginUiState;
+}
+
+type LegacyPluginData = {
+  ui?: Partial<DiffApplyPluginUiState>;
+  fontSize?: unknown;
+};
 
 export interface DiffApplyPluginUiState {
   fontSize: number;
@@ -20,7 +27,7 @@ const DEFAULT_UI_STATE: DiffApplyPluginUiState = {
 export default class DiffApplyPlugin extends Plugin {
   // UI-only preferences: configured inside the modal, not in Obsidian Settings.
   ui: DiffApplyPluginUiState = { ...DEFAULT_UI_STATE };
-  private pluginData: PluginData = {};
+  private pluginData: PersistedPluginData = { ui: { ...DEFAULT_UI_STATE } };
 
   t(key: I18nKey): string {
     return tI18n(key);
@@ -51,16 +58,31 @@ export default class DiffApplyPlugin extends Plugin {
   }
 
   private async loadUiState(): Promise<void> {
-    const data = (await this.loadData()) as PluginData | null;
-    this.pluginData = data ?? {};
+    const raw = (await this.loadData()) as LegacyPluginData | null;
+    const data = raw ?? {};
 
-    const ui = (this.pluginData.ui ?? {}) as Partial<DiffApplyPluginUiState>;
-    const normalizedGranularity = ui.diffGranularity === "char" ? "char" : "word";
-    this.ui = { ...DEFAULT_UI_STATE, ...ui, diffGranularity: normalizedGranularity };
+    const ui = data.ui ?? {};
+    const uiFontSize =
+      typeof ui.fontSize === "number" && Number.isFinite(ui.fontSize) ? ui.fontSize : undefined;
+    const legacyFontSize =
+      typeof data.fontSize === "number" && Number.isFinite(data.fontSize) ? data.fontSize : undefined;
+    const fontSize = uiFontSize ?? legacyFontSize ?? DEFAULT_UI_STATE.fontSize;
+    const diffGranularity = ui.diffGranularity === "char" ? "char" : DEFAULT_UI_STATE.diffGranularity;
+
+    this.ui = {
+      fontSize,
+      diffGranularity,
+    };
+    this.pluginData = { ui: { ...this.ui } };
   }
 
   async saveUiState(): Promise<void> {
-    this.pluginData = { ...this.pluginData, ui: this.ui };
+    this.pluginData = {
+      ui: {
+        fontSize: this.ui.fontSize,
+        diffGranularity: this.ui.diffGranularity,
+      },
+    };
     await this.saveData(this.pluginData);
   }
 

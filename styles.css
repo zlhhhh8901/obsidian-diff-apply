@@ -1,26 +1,3 @@
-/* Fix horizontal scrolling */
-.diff-apply-modal {
-  overflow: hidden !important;
-}
-
-.diff-apply-body {
-  overflow: hidden !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.diff-apply-content {
-  overflow: hidden !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.diff-apply-merge-container {
-  overflow: hidden !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-}
-
 .merge-conflict-view {
   /* ========================================
      DESIGN SYSTEM TOKENS
@@ -605,11 +582,6 @@
 }
 
 .merge-conflict-view .hybrid-font-display {
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
-.merge-conflict-view .hybrid-font-display {
   min-width: 32px;
   text-align: center;
   font-weight: var(--font-weight-medium);
@@ -781,19 +753,6 @@
 .merge-conflict-view *:focus-visible {
   outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
-}
-
-/* Screen reader only content */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
 }
 
 .hybrid-diff-modal textarea::selection {

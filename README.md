@@ -1,101 +1,91 @@
 # Diff Apply (Obsidian Plugin)
 
-[English](#english) | [中文](#中文)
+[中文](#中文) | [English](#english)
 
 ## 中文
 
-**痛点**：合并两版文本时，常需反复滚动对比、肉眼找差异、逐句复制粘贴——过程繁琐且易出错。
+Diff Apply 用于在 Obsidian 中把“选中的原文”与“目标文本”进行对照审阅，并快速回填原文片段后应用结果。
 
-**传统方案**：传统 diff 多为代码审查设计；面对写作改稿（长句改写、语义调整、段落重排）时，差异虽能高亮，但“挑选并合并成最终稿”仍不顺手。
+### 当前工作流（与实现一致）
 
-**本项目方案**：三栏浮窗（Original | Editor | Modified）+ 差异高亮 + 便捷选取片段，最终在中间栏完成合并并应用回原文。
+1. 在编辑器中选中一段原文。
+2. 运行命令 `Review & Apply Selection`，或在编辑器右键菜单点击 `Review & Apply`。
+3. 右侧 `Final` 初始内容优先取系统剪贴板；若剪贴板不可读或为空，则回退为选中文本。
+4. 左侧 `Review` 展示差异标记：
+   - 删除内容（原文有、Final 无）为删除标记
+   - 新增/替换内容可悬停查看原文 tooltip
+   - 点击差异项可把对应原文注入右侧 `Final`
+5. 在底部可切换差异粒度（`Word` / `Char`）与字号（10–24px）。
+6. 点击 `Apply` 将右侧结果替换回原始选区；点击 `Cancel` 取消。
 
-### 差异显示
+### 功能范围
 
-**默认状态**：左栏红色标注删除内容，右栏绿色标注新增内容
+- 双栏审阅：`Review` + `Final`
+- 差异粒度切换：Word / Char
+- 字号调节并持久化
+- Final 区支持撤销/重做（`Mod+Z`, `Mod+Shift+Z`, `Mod+Y`）
+- 悬停定位、注入闪烁、边缘方向提示（长文本）
 
-![默认状态](./assets/默认状态.png)
+### 截图占位（后续补图）
 
-**悬停状态**：鼠标悬停时，当前栏保持默认背景高亮，另一栏显示完整增删对比
+本次不内置截图，后续请补充到 `assets/screenshots/`，建议使用以下文件名：
 
-![悬停状态](./assets/悬停状态1.png)
+- `review-default.png`
+- `review-hover-tooltip.png`
+- `review-click-inject.png`
+- `review-edge-hints.png`
 
-**段落定位（锚点）**：
-
-- 当两侧段落数/文本长度差异较大时，会在差异视图中插入“段落锚点”，用于跨栏对齐定位。
-- 默认仅显示淡淡的小点刻度，不干扰阅读。当鼠标移至锚点附近，两侧同步高亮同一锚点：小点变亮 + 显示一条强调色竖线。
-- 若对应锚点不在当前可视范围，上/下边缘会出现箭头提示其在上方/下方。
-
-![跨栏定位](./assets/跨栏定位.png)
-
-### 文本选取
-
-- 选中左/右栏文本后按 `Enter`：插入到编辑区光标处
-- 双击某行：整行插入编辑区（自动换行）
-
-### 其它功能
-
-| 功能 | 说明 |
-|:--|:--|
-| Edit Mode | 左右栏变为可编辑状态，差异实时更新 |
-| Diff 粒度 | Word / Char 切换，适配不同语言 |
-| 字号调节 | 10–24px |
+README 可在截图补齐后按上述命名直接引用。
 
 ### 安装
 
 1. 创建插件目录：`.obsidian/plugins/diff-apply/`
-2. 将以下文件放入该目录：
+2. 复制以下文件到该目录：
    - `main.js`
    - `manifest.json`
    - `styles.css`
-3. 在设置中启用 `Diff Apply`
+3. 在 Obsidian 设置中启用 `Diff Apply`。
 
 ---
 
 ## English
 
-**Problem**: When merging two versions of text, you often have to scroll back and forth, spot differences manually, then copy/paste line by line—tedious and error-prone.
+Diff Apply helps you review differences between selected source text and target text in Obsidian, then quickly inject original fragments back and apply the final result.
 
-**Traditional approach**: Most traditional diffs are designed for code review. For writing revisions (rewriting long sentences, semantic tweaks, paragraph reordering), diffs can highlight changes, but “picking and merging into a final draft” is still not very convenient.
+### Current workflow (matches implementation)
 
-**Solution**: A 3-column floating window layout (Original | Editor | Modified) + diff highlights + convenient snippet picking. Merge the final result in the middle column and apply it back to the original text.
+1. Select source text in the editor.
+2. Run `Review & Apply Selection`, or right-click and choose `Review & Apply`.
+3. The `Final` pane initializes from clipboard text first; if clipboard read fails or is empty, it falls back to the selected text.
+4. The `Review` pane renders inline diff markers:
+   - deleted original parts are shown as delete markers
+   - inserted/replaced parts support hover tooltip with original text
+   - clicking a diff segment injects original text into `Final`
+5. Use footer controls for diff granularity (`Word` / `Char`) and font size (10–24px).
+6. Click `Apply` to replace the original selection; click `Cancel` to discard.
 
-### Diff Display
+### Feature scope
 
-**Default**: deletions are marked in red on the left; additions are marked in green on the right.
+- Two-pane review: `Review` + `Final`
+- Diff granularity toggle: Word / Char
+- Font size controls with persistence
+- Undo/redo in Final pane (`Mod+Z`, `Mod+Shift+Z`, `Mod+Y`)
+- Hover navigation, injection flash, edge direction hints for long text
 
-![Default](./assets/默认状态.png)
+### Screenshot placeholders (to be added)
 
-**Hover**: when hovering, the current column keeps its default background highlight, while the other column shows the full add/remove comparison.
+Screenshots are intentionally omitted in this cleanup pass. Add future screenshots under `assets/screenshots/` with these names:
 
-![Hover](./assets/悬停状态1.png)
-
-**Paragraph anchors**: 
-
-- When the paragraph count / text length differs significantly between the two sides, the diff view inserts “paragraph anchors” to help align and locate corresponding content across panes.
-- By default, only faint dot ticks are shown to avoid distracting from reading. When you move the cursor near an anchor, the same anchor is highlighted on both sides: the dot brightens and an accent-colored vertical indicator line appears.
-- If the corresponding anchor is outside the current viewport, an arrow will appear at the top/bottom edge to indicate whether it’s above or below.
-
-![Paragraph markers](./assets/跨栏定位.png)
-
-### Text Picking
-
-- Select text in the left/right column and press `Enter`: insert at the editor cursor
-- Double-click a line: insert the whole line (newline auto-added)
-
-### Other Features
-
-| Feature | Notes |
-|--------|------|
-| Edit Mode | Left/right columns become editable; the diff view updates in real time |
-| Diff granularity | Switch Word / Char, useful for different languages |
-| Font size | 10–24px |
+- `review-default.png`
+- `review-hover-tooltip.png`
+- `review-click-inject.png`
+- `review-edge-hints.png`
 
 ### Installation
 
-1. Create the plugin folder: `.obsidian/plugins/diff-apply/`
-2. Put these files into the folder:
+1. Create plugin folder: `.obsidian/plugins/diff-apply/`
+2. Copy the following files into it:
    - `main.js`
    - `manifest.json`
    - `styles.css`
-3. Enable `Diff Apply` in Obsidian settings
+3. Enable `Diff Apply` in Obsidian settings.

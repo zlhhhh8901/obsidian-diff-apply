@@ -1,6 +1,6 @@
 const en = {
-  "command.hybrid.name": "Hybrid edit selection",
-  "menu.hybrid.title": "Hybrid Edit (Hybrid Diff)",
+  "command.hybrid.name": "Review & Apply Selection",
+  "menu.hybrid.title": "Review & Apply",
 
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
 
