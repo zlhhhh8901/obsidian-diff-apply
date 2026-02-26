@@ -1359,40 +1359,40 @@
 }
 
 .review-diff-modal .review-change {
-  color: var(--diff-add-text);
+  color: var(--text-normal);
   cursor: pointer;
   text-decoration-line: underline;
   text-decoration-style: dashed;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.22em;
-  background: color-mix(in srgb, var(--diff-add-subtle) 58%, transparent);
-  border-radius: 2px;
-  padding: 0 1px;
+  text-decoration-thickness: 2.4px;
+  text-underline-offset: 0.24em;
+  text-decoration-color: color-mix(in srgb, var(--accent-color) 58%, transparent);
 }
 
 .review-diff-modal .review-change:hover {
-  background: color-mix(in srgb, var(--diff-add-subtle) 85%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--accent-color) 78%, transparent);
 }
 
 .review-diff-modal .review-delete {
   display: inline;
-  color: var(--diff-remove-text);
-  background: color-mix(in srgb, var(--diff-remove-subtle) 58%, transparent);
-  border-radius: 2px;
-  padding: 0 1px;
+  color: color-mix(in srgb, var(--accent-color) 10%, var(--text-muted));
+  opacity: 0.76;
   cursor: pointer;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1.8px;
+  text-decoration-color: color-mix(in srgb, var(--accent-color) 14%, transparent);
 }
 
 .review-diff-modal .review-delete:hover {
-  background: color-mix(in srgb, var(--diff-remove-subtle) 85%, transparent);
+  opacity: 0.92;
+  color: color-mix(in srgb, var(--accent-color) 14%, var(--text-secondary));
+  text-decoration-color: color-mix(in srgb, var(--accent-color) 22%, transparent);
 }
 
 .review-diff-modal .review-change.is-armed,
 .review-diff-modal .review-delete.is-armed {
   border-radius: 3px;
-  outline: 1px solid color-mix(in srgb, var(--accent-color) 62%, transparent);
-  outline-offset: 0;
-  background: color-mix(in srgb, var(--accent-tint) 74%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--accent-color) 55%, transparent);
+  outline-offset: 1px;
 }
 
 .review-tooltip {
