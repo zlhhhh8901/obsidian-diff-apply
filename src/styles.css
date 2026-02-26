@@ -53,18 +53,18 @@
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Color System */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --bg-tertiary: #f6f8fa;
-  --border-color: #d0d7de;
+  /* Color System (Obsidian theme-aware) */
+  --bg-primary: var(--background-primary, #ffffff);
+  --bg-secondary: var(--background-secondary, #f8f9fa);
+  --bg-tertiary: var(--background-modifier-form-field, #f6f8fa);
+  --border-color: var(--background-modifier-border, #d0d7de);
   --border-subtle: rgba(208, 215, 222, 0.5);
-  --text-primary: #24292f;
-  --text-secondary: #57606a;
-  --text-tertiary: #6e7781;
-  --text-muted: #8c959f;
-  --accent-color: #0969da;
-  --accent-hover: #0860ca;
+  --text-primary: var(--text-normal, #24292f);
+  --text-secondary: var(--text-muted, #57606a);
+  --text-tertiary: var(--text-faint, #6e7781);
+  --ui-text-muted: var(--text-faint, #8c959f);
+  --accent-color: var(--interactive-accent, #0969da);
+  --accent-hover: var(--interactive-accent-hover, #0860ca);
   --success-color: #1f883d;
   --success-hover: #1a7f37;
   --danger-color: #cf222e;
@@ -79,9 +79,9 @@
   --diff-remove-text: #cf222e;
 
   /* Component Colors */
-  --segmented-bg: rgb(229, 234, 239);
-  --segmented-active-bg: #ffffff;
-  --btn-primary-text: #ffffff;
+  --segmented-bg: var(--background-modifier-hover, rgb(229, 234, 239));
+  --segmented-active-bg: var(--background-primary, #ffffff);
+  --btn-primary-text: var(--text-on-accent, #ffffff);
   --focus-outline: rgba(9, 105, 218, 0.5);
   --focus-outline-subtle: rgba(9, 105, 218, 0.35);
   --accent-tint: rgba(9, 105, 218, 0.1);
@@ -131,36 +131,13 @@
 }
 
 .theme-dark .merge-conflict-view {
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --bg-tertiary: #18181b;
-  --border-color: #27272a;
-  --border-subtle: rgba(39, 39, 42, 0.6);
-  --text-primary: #e4e4e7;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --text-muted: #52525b;
-  --accent-color: #58a6ff;
-  --accent-hover: #79c0ff;
-  --success-color: #238636;
-  --success-hover: #2ea043;
-  --danger-color: #f85149;
-  --danger-hover: #ff7b72;
-
+  /* Keep only diff/tooltip/caret tuning in dark mode. */
   --diff-add-subtle: rgba(20, 83, 45, 0.3);
   --diff-add-emphasis: rgba(20, 83, 45, 0.3);
   --diff-add-text: #bbf7d0;
   --diff-remove-subtle: rgba(127, 29, 29, 0.3);
   --diff-remove-emphasis: rgba(127, 29, 29, 0.3);
   --diff-remove-text: #fecaca;
-
-  --segmented-bg: rgba(255, 255, 255, 0.06);
-  --segmented-active-bg: rgba(255, 255, 255, 0.12);
-  --btn-primary-text: #ffffff;
-  --focus-outline: rgba(88, 166, 255, 0.6);
-  --focus-outline-subtle: rgba(88, 166, 255, 0.35);
-  --accent-tint: rgba(88, 166, 255, 0.16);
-  --background-modifier-form-field: var(--bg-secondary);
 
   /* Review panel (dark mode) */
   --review-change-underline: #90caf9;
@@ -200,7 +177,7 @@
   --hybrid-border: var(--border-color);
   --hybrid-bg: var(--bg-primary);
   --hybrid-bg-secondary: var(--bg-secondary);
-  --hybrid-text-muted: var(--text-muted);
+  --hybrid-text-muted: var(--ui-text-muted);
   --hybrid-accent: var(--accent-color);
   --hybrid-scrollbar-track: var(--scrollbar-bg, transparent);
   --hybrid-scrollbar-thumb: rgba(128, 128, 128, 0.35);
@@ -220,15 +197,19 @@
 }
 
 @supports (color: color-mix(in srgb, black 50%, transparent)) {
+  .merge-conflict-view {
+    --accent-tint: color-mix(in srgb, var(--accent-color) 16%, transparent);
+  }
+
   .hybrid-diff-modal {
     --hybrid-scrollbar-thumb: color-mix(
       in srgb,
-      var(--scrollbar-thumb-bg, var(--text-muted)) 55%,
+      var(--scrollbar-thumb-bg, var(--ui-text-muted)) 55%,
       transparent
     );
     --hybrid-scrollbar-thumb-hover: color-mix(
       in srgb,
-      var(--scrollbar-active-thumb-bg, var(--text-muted)) 70%,
+      var(--scrollbar-active-thumb-bg, var(--ui-text-muted)) 70%,
       transparent
     );
   }
@@ -312,19 +293,17 @@
 }
 
 .hybrid-diff-modal .panel-header {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-tertiary);
   margin-bottom: 0;
   border-bottom: 1px solid var(--border-color);
   padding: var(--space-2) var(--space-3);
   background: var(--bg-secondary);
-  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
   user-select: none;
   position: relative;
   line-height: var(--line-height-ui);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .hybrid-diff-modal .panel-header::after {
@@ -333,9 +312,28 @@
 
 .hybrid-panel.editable .panel-header {
   background: var(--bg-secondary);
-  color: var(--accent-color);
-  font-weight: var(--font-weight-medium);
   border-bottom-color: var(--border-color);
+}
+
+.hybrid-diff-modal .panel-header__title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-tertiary);
+  font-weight: var(--font-weight-medium);
+}
+
+.hybrid-diff-modal .panel-header__hint {
+  font-size: var(--font-size-xs);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-ui);
+}
+
+.hybrid-panel.editable .panel-header .panel-header__title {
+  color: var(--accent-color);
 }
 
 .hybrid-panel .panel-content {
@@ -537,7 +535,7 @@
 }
 
 .merge-conflict-view .btn-secondary {
-  background-color: var(--bg-tertiary);
+  background-color: var(--interactive-normal, var(--bg-tertiary));
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   box-shadow: none;
@@ -545,13 +543,13 @@
 }
 
 .merge-conflict-view .btn-secondary:hover:not(:disabled) {
-  background-color: var(--bg-secondary);
+  background-color: var(--interactive-hover, var(--bg-secondary));
   border-color: var(--border-color);
   box-shadow: var(--shadow-md);
 }
 
 .merge-conflict-view .btn-primary {
-  background-color: var(--success-color);
+  background-color: var(--accent-color);
   border-color: transparent;
   color: var(--btn-primary-text);
   font-weight: var(--font-weight-medium);
@@ -559,7 +557,7 @@
 }
 
 .merge-conflict-view .btn-primary:hover:not(:disabled) {
-  background-color: var(--success-hover);
+  background-color: var(--accent-hover);
   box-shadow: var(--shadow-md);
 }
 
@@ -808,37 +806,72 @@
 .review-diff-modal .review-change {
   color: var(--text-normal);
   cursor: pointer;
+  border-radius: 3px;
+  background: transparent;
   text-decoration-line: underline;
   text-decoration-style: dashed;
   text-decoration-thickness: 2px;
   text-underline-offset: 0.24em;
   text-decoration-color: var(--review-change-underline);
+  transition:
+    background-color var(--transition-fast) var(--ease-out),
+    text-decoration-color var(--transition-fast) var(--ease-out);
 }
 
-.review-diff-modal .review-change:hover {
-  text-decoration-color: var(--review-change-underline);
+.review-diff-modal .review-change[data-change-type="insert"] {
+  background: var(--diff-add-subtle);
+  text-decoration-color: var(--diff-add-text);
+}
+
+.review-diff-modal .review-change[data-change-type="replace"] {
+  background: var(--accent-tint);
+  text-decoration-color: var(--accent-color);
+}
+
+.review-diff-modal .review-change[data-change-type="insert"]:hover {
+  background: var(--diff-add-emphasis);
+}
+
+.review-diff-modal .review-change[data-change-type="replace"]:hover {
+  background: color-mix(in srgb, var(--accent-color) 22%, transparent);
 }
 
 .review-diff-modal .review-delete {
   display: inline;
-  color: var(--review-delete-color);
+  color: var(--diff-remove-text);
+  background: var(--diff-remove-subtle);
   cursor: pointer;
+  border-radius: 3px;
   text-decoration-line: line-through;
   text-decoration-style: solid;
   text-decoration-thickness: 1px;
-  text-decoration-color: var(--review-delete-color);
+  text-decoration-color: var(--diff-remove-text);
+  transition:
+    background-color var(--transition-fast) var(--ease-out),
+    color var(--transition-fast) var(--ease-out),
+    text-decoration-color var(--transition-fast) var(--ease-out);
 }
 
 .review-diff-modal .review-delete:hover {
-  color: var(--review-delete-color);
-  text-decoration-color: var(--review-delete-color);
+  background: var(--diff-remove-emphasis);
 }
 
 .review-diff-modal .review-change.is-armed,
 .review-diff-modal .review-delete.is-armed {
-  border-radius: 3px;
-  outline: 1px dashed color-mix(in srgb, var(--accent-color) 55%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--accent-color) 55%, transparent);
   outline-offset: 1px;
+}
+
+.review-diff-modal .review-change.is-armed[data-change-type="insert"] {
+  background: var(--diff-add-emphasis);
+}
+
+.review-diff-modal .review-change.is-armed[data-change-type="replace"] {
+  background: color-mix(in srgb, var(--accent-color) 26%, transparent);
+}
+
+.review-diff-modal .review-delete.is-armed {
+  background: var(--diff-remove-emphasis);
 }
 
 .review-tooltip {
@@ -849,8 +882,9 @@
   overflow: auto;
   padding: 10px 12px;
   border-radius: var(--radius-lg, 8px);
-  background: var(--tooltip-bg);
-  color: var(--tooltip-text);
+  background: var(--tooltip-bg, var(--background-secondary-alt, var(--background-secondary, rgba(20, 20, 23, 0.96))));
+  color: var(--tooltip-text, var(--text-normal, rgba(255, 255, 255, 0.92)));
+  border: 1px solid var(--background-modifier-border, rgba(0, 0, 0, 0.12));
   box-shadow: var(--shadow-lg, 0 8px 16px rgba(0, 0, 0, 0.12));
   font-family: var(--font-monospace, monospace);
   font-size: 12px;

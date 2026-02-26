@@ -5,7 +5,9 @@ const en = {
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
 
   "modal.header.review": "Review",
+  "modal.header.reviewHint": "Hover: original • Click: restore • Offscreen: click twice",
   "modal.header.final": "Final",
+  "modal.header.finalHint": "Edit result • Apply replaces selection",
   "modal.brand.title": "Diff & Apply",
   "modal.action.apply": "Apply",
   "modal.action.cancel": "Cancel",
@@ -14,6 +16,7 @@ const en = {
   "modal.fontSize.decreaseAriaLabel": "Decrease font size",
   "modal.fontSize.increaseAriaLabel": "Increase font size",
   "modal.tooltip.originalEmpty": "(Original text is empty)",
+  "modal.tooltip.originalPrefix": "Original:",
 } as const;
 
 export type I18nKey = keyof typeof en;

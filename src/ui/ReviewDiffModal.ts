@@ -122,7 +122,8 @@ export class ReviewDiffModal extends Modal {
   private createPanels(editorsContainer: HTMLElement): void {
     const leftPanel = editorsContainer.createDiv({ cls: "hybrid-panel review" });
     const leftHeader = leftPanel.createDiv({ cls: "panel-header" });
-    leftHeader.setText(this.plugin.t("modal.header.review"));
+    leftHeader.createDiv({ cls: "panel-header__title", text: this.plugin.t("modal.header.review") });
+    leftHeader.createDiv({ cls: "panel-header__hint", text: this.plugin.t("modal.header.reviewHint") });
 
     const leftContent = leftPanel.createDiv({ cls: "panel-content" });
     const reviewViewEl = leftContent.createDiv({ cls: "review-view" });
@@ -130,7 +131,8 @@ export class ReviewDiffModal extends Modal {
 
     const rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel editable final" });
     const rightHeader = rightPanel.createDiv({ cls: "panel-header" });
-    rightHeader.setText(this.plugin.t("modal.header.final"));
+    rightHeader.createDiv({ cls: "panel-header__title", text: this.plugin.t("modal.header.final") });
+    rightHeader.createDiv({ cls: "panel-header__hint", text: this.plugin.t("modal.header.finalHint") });
 
     const rightContent = rightPanel.createDiv({ cls: "panel-content" });
     const finalEditor = rightContent.createEl("textarea", {
@@ -442,6 +444,7 @@ export class ReviewDiffModal extends Modal {
         const span = document.createElement("span");
         span.className = "review-change";
         span.dataset.kind = "change";
+        span.dataset.changeType = op.changeType;
         span.dataset.finalStart = String(op.finalStart);
         span.dataset.finalEnd = String(op.finalEnd);
         span.dataset.originalText = op.originalText;
@@ -865,14 +868,12 @@ export class ReviewDiffModal extends Modal {
     }
 
     this.cancelHideTooltip();
-    if (target.dataset.kind === "delete") {
-      this.tooltipEl.toggleClass("is-visible", false);
-      return;
-    }
 
     const originalText = target.dataset.originalText ?? "";
-    this.tooltipContentEl.textContent =
+    const originalBody =
       originalText.length > 0 ? originalText : this.plugin.t("modal.tooltip.originalEmpty");
+    const prefix = this.plugin.t("modal.tooltip.originalPrefix");
+    this.tooltipContentEl.textContent = `${prefix}\n${originalBody}`;
 
     this.tooltipEl.toggleClass("is-visible", true);
 
