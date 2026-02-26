@@ -1590,13 +1590,3 @@
 .final-edge-hint[data-direction="down"] {
   bottom: 10px;
 }
-
-.review-diff-modal .injection-history-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.review-diff-modal .injection-history-btn:focus-visible {
-  outline: 2px solid var(--focus-outline);
-  outline-offset: 1px;
-}

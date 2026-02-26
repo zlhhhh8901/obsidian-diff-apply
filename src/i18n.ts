@@ -17,8 +17,6 @@ const en = {
   "modal.action.apply": "Apply",
   "modal.action.cancel": "Cancel",
   "modal.action.undo": "Undo",
-  "modal.action.undoInjection": "Undo Injection",
-  "modal.action.redoInjection": "Redo Injection",
   "modal.diffGranularity.label": "Diff:",
   "modal.diffGranularity.word": "Word",
   "modal.diffGranularity.char": "Char",

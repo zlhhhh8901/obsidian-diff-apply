@@ -2,16 +2,6 @@ import { App, Modal, setIcon } from "obsidian";
 import type DiffApplyPlugin from "../main";
 import type { DiffGranularityMode } from "../main";
 import { computeReviewOps } from "../utils/reviewDiff";
-import {
-  canRedoInjection,
-  canUndoInjection,
-  createInjectionHistoryState,
-  pushInjectionTxn,
-  redoInjection,
-  undoInjection,
-  type InjectionHistoryState,
-  type InjectionTxn,
-} from "../utils/injectionHistory";
 
 type FlashRange = { start: number; end: number; kind: "range" | "caret" };
 
@@ -22,14 +12,6 @@ type ReviewTarget =
 type ArmedInjectionTarget = {
   target: ReviewTarget;
   revisionId: number;
-};
-
-type EditorSnapshot = {
-  value: string;
-  selectionStart: number;
-  selectionEnd: number;
-  scrollTop: number;
-  scrollLeft: number;
 };
 
 export interface ReviewDiffOptions {
@@ -80,10 +62,6 @@ export class ReviewDiffModal extends Modal {
   private pendingScrollFrame: number | null = null;
   private inputDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private injectionHistory: InjectionHistoryState = createInjectionHistoryState();
-  private undoInjectionBtn: HTMLButtonElement | null = null;
-  private redoInjectionBtn: HTMLButtonElement | null = null;
-
   private fontDisplayEl: HTMLSpanElement | null = null;
   private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
 
@@ -92,7 +70,6 @@ export class ReviewDiffModal extends Modal {
   private boundHandleReviewPointerOver: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewPointerOut: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewClick: ((event: MouseEvent) => void) | null = null;
-  private boundHandleModalKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private boundHandleTooltipPointerEnter: (() => void) | null = null;
   private boundHandleTooltipPointerLeave: (() => void) | null = null;
 
@@ -127,10 +104,8 @@ export class ReviewDiffModal extends Modal {
     this.createPanels(editorsContainer);
     this.addActions(container);
     this.createTooltip();
-    this.setupKeyboardShortcuts();
 
     this.renderAll({ immediate: true });
-    this.updateInjectionHistoryControls();
   }
 
   private createPanels(editorsContainer: HTMLElement): void {
@@ -251,7 +226,6 @@ export class ReviewDiffModal extends Modal {
   private markFinalContentChanged(opts: { immediateRender: boolean }): void {
     this.revisionId += 1;
     this.clearArmedTarget();
-    this.updateInjectionHistoryControls();
 
     if (opts.immediateRender) {
       this.renderAll({ immediate: true });
@@ -508,66 +482,12 @@ export class ReviewDiffModal extends Modal {
     this.scrollFinalToIndex(target.pos);
   }
 
-  private captureSnapshot(): EditorSnapshot | null {
-    if (!this.finalEditor) {
-      return null;
-    }
-
-    return {
-      value: this.finalEditor.value ?? "",
-      selectionStart: this.finalEditor.selectionStart ?? 0,
-      selectionEnd: this.finalEditor.selectionEnd ?? 0,
-      scrollTop: this.finalEditor.scrollTop,
-      scrollLeft: this.finalEditor.scrollLeft,
-    };
-  }
-
-  private applySnapshot(
-    snapshot: EditorSnapshot,
-    options: { focusEditor?: boolean } = {},
-  ): void {
-    if (!this.finalEditor) {
-      return;
-    }
-
-    const preservedScrollTop = snapshot.scrollTop;
-    const preservedScrollLeft = snapshot.scrollLeft;
-    const shouldFocusEditor = options.focusEditor ?? true;
-
-    this.finalEditor.value = snapshot.value;
-    this.finalEditor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
-    if (shouldFocusEditor) {
-      try {
-        this.finalEditor.focus({ preventScroll: true });
-      } catch (_error) {
-        this.finalEditor.focus();
-      }
-    }
-    this.finalEditor.scrollTop = preservedScrollTop;
-    this.finalEditor.scrollLeft = preservedScrollLeft;
-    this.syncFinalOverlayScrollAndEdgeHints();
-
-    window.requestAnimationFrame(() => {
-      if (!this.finalEditor) {
-        return;
-      }
-      this.finalEditor.scrollTop = preservedScrollTop;
-      this.finalEditor.scrollLeft = preservedScrollLeft;
-      this.syncFinalOverlayScrollAndEdgeHints();
-    });
-  }
-
   private injectTarget(target: ReviewTarget): void {
     if (!this.finalEditor) {
       return;
     }
 
-    const beforeSnapshot = this.captureSnapshot();
-    if (!beforeSnapshot) {
-      return;
-    }
-
-    const currentValue = beforeSnapshot.value;
+    const currentValue = this.finalEditor.value ?? "";
     const startRaw = target.kind === "delete" ? target.pos : target.start;
     const endRaw = target.kind === "delete" ? target.pos : target.end;
     const replacement = target.originalText;
@@ -583,121 +503,7 @@ export class ReviewDiffModal extends Modal {
 
     this.flashInjectedRange(start, caret);
     this.scrollFinalToIndex(start);
-
-    const afterSnapshot = this.captureSnapshot();
-    if (!afterSnapshot) {
-      return;
-    }
-
-    const txn: InjectionTxn = {
-      beforeValue: beforeSnapshot.value,
-      afterValue: afterSnapshot.value,
-      beforeSelectionStart: beforeSnapshot.selectionStart,
-      beforeSelectionEnd: beforeSnapshot.selectionEnd,
-      afterSelectionStart: afterSnapshot.selectionStart,
-      afterSelectionEnd: afterSnapshot.selectionEnd,
-      beforeScrollTop: beforeSnapshot.scrollTop,
-      beforeScrollLeft: beforeSnapshot.scrollLeft,
-      afterScrollTop: afterSnapshot.scrollTop,
-      afterScrollLeft: afterSnapshot.scrollLeft,
-    };
-
-    this.injectionHistory = pushInjectionTxn(this.injectionHistory, txn);
     this.markFinalContentChanged({ immediateRender: true });
-  }
-
-  private performUndoInjection(): boolean {
-    if (!this.finalEditor) {
-      return false;
-    }
-
-    const currentValue = this.finalEditor.value ?? "";
-    const result = undoInjection(this.injectionHistory, currentValue);
-    if (!result.txn) {
-      return false;
-    }
-
-    const preservedScrollTop = this.finalEditor.scrollTop;
-    const preservedScrollLeft = this.finalEditor.scrollLeft;
-    const shouldFocusEditor = document.activeElement === this.finalEditor;
-
-    this.injectionHistory = result.state;
-    this.applySnapshot({
-      value: result.txn.beforeValue,
-      selectionStart: result.txn.beforeSelectionStart,
-      selectionEnd: result.txn.beforeSelectionEnd,
-      scrollTop: preservedScrollTop,
-      scrollLeft: preservedScrollLeft,
-    }, { focusEditor: shouldFocusEditor });
-    this.markFinalContentChanged({ immediateRender: true });
-    return true;
-  }
-
-  private performRedoInjection(): boolean {
-    if (!this.finalEditor) {
-      return false;
-    }
-
-    const currentValue = this.finalEditor.value ?? "";
-    const result = redoInjection(this.injectionHistory, currentValue);
-    if (!result.txn) {
-      return false;
-    }
-
-    const preservedScrollTop = this.finalEditor.scrollTop;
-    const preservedScrollLeft = this.finalEditor.scrollLeft;
-    const shouldFocusEditor = document.activeElement === this.finalEditor;
-
-    this.injectionHistory = result.state;
-    this.applySnapshot({
-      value: result.txn.afterValue,
-      selectionStart: result.txn.afterSelectionStart,
-      selectionEnd: result.txn.afterSelectionEnd,
-      scrollTop: preservedScrollTop,
-      scrollLeft: preservedScrollLeft,
-    }, { focusEditor: shouldFocusEditor });
-    this.markFinalContentChanged({ immediateRender: true });
-    return true;
-  }
-
-  private setupKeyboardShortcuts(): void {
-    this.boundHandleModalKeyDown = (event) => this.handleModalKeyDown(event);
-    this.modalEl.addEventListener("keydown", this.boundHandleModalKeyDown, { capture: true });
-  }
-
-  private handleModalKeyDown(event: KeyboardEvent): void {
-    const target = event.target;
-    if (!(target instanceof Node) || !this.modalEl.contains(target)) {
-      return;
-    }
-
-    const ctrlOrMeta = event.ctrlKey || event.metaKey;
-    if (!ctrlOrMeta || event.altKey) {
-      return;
-    }
-
-    const key = event.key.toLowerCase();
-    const isUndo = key === "z" && !event.shiftKey;
-    const isRedo = (key === "z" && event.shiftKey) || key === "y";
-
-    if (!isUndo && !isRedo) {
-      return;
-    }
-
-    if (isUndo) {
-      const didHandle = this.performUndoInjection();
-      if (didHandle) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-      return;
-    }
-
-    const didHandle = this.performRedoInjection();
-    if (didHandle) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
   }
 
   private getHoverAnchorIndex(): number | null {
@@ -1003,38 +809,6 @@ export class ReviewDiffModal extends Modal {
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
 
-    const undoInjectionBtn = rightSection.createEl("button", {
-      cls: "btn btn-secondary injection-history-btn",
-      text: this.plugin.t("modal.action.undoInjection"),
-    });
-    undoInjectionBtn.type = "button";
-    undoInjectionBtn.addEventListener("click", () => {
-      this.performUndoInjection();
-    });
-    this.undoInjectionBtn = undoInjectionBtn;
-
-    const redoInjectionBtn = rightSection.createEl("button", {
-      cls: "btn btn-secondary injection-history-btn",
-      text: this.plugin.t("modal.action.redoInjection"),
-    });
-    redoInjectionBtn.type = "button";
-    redoInjectionBtn.addEventListener("click", () => {
-      this.performRedoInjection();
-    });
-    this.redoInjectionBtn = redoInjectionBtn;
-
-    rightSection.createDiv({ cls: "divider" });
-
-    const clearBtn = rightSection.createEl("button", { cls: "btn btn-ghost hybrid-clear-btn" });
-    clearBtn.type = "button";
-    clearBtn.setAttribute("aria-label", this.plugin.t("modal.action.clear"));
-    clearBtn.setAttribute("title", this.plugin.t("modal.action.clear"));
-    const clearIcon = clearBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
-    setIcon(clearIcon, "trash");
-    clearBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.clear") });
-
-    rightSection.createDiv({ cls: "divider" });
-
     const cancelBtn = rightSection.createEl("button", { cls: "btn btn-secondary hybrid-cancel-btn" });
     cancelBtn.type = "button";
     cancelBtn.setAttribute("aria-label", this.plugin.t("modal.action.cancel"));
@@ -1053,14 +827,6 @@ export class ReviewDiffModal extends Modal {
     setIcon(applyIcon, "check");
     applyBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.apply") });
 
-    clearBtn.addEventListener("click", () => {
-      if (!this.finalEditor) {
-        return;
-      }
-      this.finalEditor.value = "";
-      this.markFinalContentChanged({ immediateRender: true });
-    });
-
     cancelBtn.addEventListener("click", () => this.close());
     applyBtn.addEventListener("click", () => {
       if (!this.finalEditor) {
@@ -1072,22 +838,6 @@ export class ReviewDiffModal extends Modal {
 
     decreaseBtn.addEventListener("click", () => this.updateFontSize(Math.max(10, this.fontSize - 1)));
     increaseBtn.addEventListener("click", () => this.updateFontSize(Math.min(24, this.fontSize + 1)));
-  }
-
-  private updateInjectionHistoryControls(): void {
-    const currentValue = this.finalEditor?.value ?? "";
-    const canUndo = canUndoInjection(this.injectionHistory, currentValue);
-    const canRedo = canRedoInjection(this.injectionHistory, currentValue);
-
-    if (this.undoInjectionBtn) {
-      this.undoInjectionBtn.disabled = !canUndo;
-      this.undoInjectionBtn.setAttribute("aria-disabled", canUndo ? "false" : "true");
-    }
-
-    if (this.redoInjectionBtn) {
-      this.redoInjectionBtn.disabled = !canRedo;
-      this.redoInjectionBtn.setAttribute("aria-disabled", canRedo ? "false" : "true");
-    }
   }
 
   private updateDiffGranularityUI(): void {
@@ -1170,10 +920,6 @@ export class ReviewDiffModal extends Modal {
     }
     if (this.reviewViewEl && this.boundHandleReviewClick) {
       this.reviewViewEl.removeEventListener("click", this.boundHandleReviewClick);
-    }
-    if (this.boundHandleModalKeyDown) {
-      this.modalEl.removeEventListener("keydown", this.boundHandleModalKeyDown, true);
-      this.boundHandleModalKeyDown = null;
     }
 
     if (this.tooltipEl) {
