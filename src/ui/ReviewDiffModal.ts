@@ -84,9 +84,12 @@ export class ReviewDiffModal extends Modal {
   private historyStack: EditorSnapshot[] = [];
   private historyIndex = -1;
   private applyingHistory = false;
+  private isComposing = false;
 
   private boundHandleFinalScroll: (() => void) | null = null;
   private boundHandleFinalInput: (() => void) | null = null;
+  private boundHandleFinalCompositionStart: (() => void) | null = null;
+  private boundHandleFinalCompositionEnd: (() => void) | null = null;
   private boundHandleFinalKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private boundHandleReviewPointerOver: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewPointerOut: ((event: PointerEvent) => void) | null = null;
@@ -102,6 +105,9 @@ export class ReviewDiffModal extends Modal {
   private boundHandleHelpPointerLeave: (() => void) | null = null;
   private boundHandleHelpTooltipPointerEnter: (() => void) | null = null;
   private boundHandleHelpTooltipPointerLeave: (() => void) | null = null;
+  private boundHandleHelpFocus: (() => void) | null = null;
+  private boundHandleHelpBlur: (() => void) | null = null;
+  private boundHandleHelpClick: ((event: MouseEvent) => void) | null = null;
   private boundHandleWindowResize: (() => void) | null = null;
 
   constructor(app: App, opts: ReviewDiffOptions) {
@@ -126,11 +132,10 @@ export class ReviewDiffModal extends Modal {
     const headerActions = header.createDiv({ cls: "merge-header-actions" });
     const helpBtn = headerActions.createEl("button", { cls: "merge-header-help" });
     helpBtn.type = "button";
-    helpBtn.tabIndex = -1;
+    helpBtn.tabIndex = 0;
     setIcon(helpBtn, "help-circle");
-    helpBtn.removeAttribute("aria-label");
-    helpBtn.removeAttribute("title");
-    helpBtn.removeAttribute("data-tooltip-position");
+    helpBtn.setAttribute("aria-label", this.plugin.t("modal.help.ariaLabel"));
+    helpBtn.setAttribute("title", this.plugin.t("modal.help.ariaLabel"));
     this.helpButtonEl = helpBtn;
 
     this.modalEl.addClass("hybrid-diff-modal");
@@ -229,6 +234,23 @@ export class ReviewDiffModal extends Modal {
 
     this.boundHandleFinalInput = () => this.handleFinalInput();
     finalEditor.addEventListener("input", this.boundHandleFinalInput);
+
+    this.boundHandleFinalCompositionStart = () => {
+      if (this.applyingHistory) {
+        return;
+      }
+      this.isComposing = true;
+    };
+    finalEditor.addEventListener("compositionstart", this.boundHandleFinalCompositionStart);
+
+    this.boundHandleFinalCompositionEnd = () => {
+      if (this.applyingHistory) {
+        return;
+      }
+      this.isComposing = false;
+      this.pushEditorHistory();
+    };
+    finalEditor.addEventListener("compositionend", this.boundHandleFinalCompositionEnd);
 
     this.boundHandleFinalKeyDown = (event) => this.handleFinalKeyDown(event);
     finalEditor.addEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
@@ -337,6 +359,22 @@ export class ReviewDiffModal extends Modal {
     this.boundHandleHelpPointerLeave = () => this.scheduleHideHelpTooltip();
     this.helpButtonEl.addEventListener("pointerenter", this.boundHandleHelpPointerEnter);
     this.helpButtonEl.addEventListener("pointerleave", this.boundHandleHelpPointerLeave);
+    this.boundHandleHelpFocus = () => this.showHelpTooltip();
+    this.boundHandleHelpBlur = () => this.scheduleHideHelpTooltip();
+    this.helpButtonEl.addEventListener("focus", this.boundHandleHelpFocus);
+    this.helpButtonEl.addEventListener("blur", this.boundHandleHelpBlur);
+    this.boundHandleHelpClick = (event) => {
+      event.preventDefault();
+      if (!this.helpTooltipEl) {
+        return;
+      }
+      if (this.helpTooltipEl.classList.contains("is-visible")) {
+        this.hideHelpTooltip();
+        return;
+      }
+      this.showHelpTooltip();
+    };
+    this.helpButtonEl.addEventListener("click", this.boundHandleHelpClick);
 
     this.boundHandleHelpTooltipPointerEnter = () => this.cancelHideHelpTooltip();
     this.boundHandleHelpTooltipPointerLeave = () => this.scheduleHideHelpTooltip();
@@ -430,7 +468,7 @@ export class ReviewDiffModal extends Modal {
   }
 
   private handleFinalInput(): void {
-    if (!this.applyingHistory) {
+    if (!this.applyingHistory && !this.isComposing) {
       this.pushEditorHistory();
     }
     this.markFinalContentChanged({ immediateRender: false });
@@ -1465,6 +1503,12 @@ export class ReviewDiffModal extends Modal {
     if (this.finalEditor && this.boundHandleFinalInput) {
       this.finalEditor.removeEventListener("input", this.boundHandleFinalInput);
     }
+    if (this.finalEditor && this.boundHandleFinalCompositionStart) {
+      this.finalEditor.removeEventListener("compositionstart", this.boundHandleFinalCompositionStart);
+    }
+    if (this.finalEditor && this.boundHandleFinalCompositionEnd) {
+      this.finalEditor.removeEventListener("compositionend", this.boundHandleFinalCompositionEnd);
+    }
     if (this.finalEditor && this.boundHandleFinalKeyDown) {
       this.finalEditor.removeEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
     }
@@ -1500,6 +1544,15 @@ export class ReviewDiffModal extends Modal {
       }
       if (this.boundHandleHelpPointerLeave) {
         this.helpButtonEl.removeEventListener("pointerleave", this.boundHandleHelpPointerLeave);
+      }
+      if (this.boundHandleHelpFocus) {
+        this.helpButtonEl.removeEventListener("focus", this.boundHandleHelpFocus);
+      }
+      if (this.boundHandleHelpBlur) {
+        this.helpButtonEl.removeEventListener("blur", this.boundHandleHelpBlur);
+      }
+      if (this.boundHandleHelpClick) {
+        this.helpButtonEl.removeEventListener("click", this.boundHandleHelpClick);
       }
       this.helpButtonEl = null;
     }
