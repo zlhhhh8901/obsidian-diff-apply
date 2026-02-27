@@ -980,6 +980,33 @@
   pointer-events: none;
 }
 
+.help-tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  white-space: normal;
+}
+
+.help-tooltip-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.help-tooltip-section-title {
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--text-primary);
+}
+
+.help-tooltip-section-list {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.help-tooltip-section-list li + li {
+  margin-top: 4px;
+}
+
 .help-tooltip.is-visible {
   opacity: 1;
   visibility: visible;

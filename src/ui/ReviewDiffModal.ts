@@ -149,16 +149,34 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
+    // Reset inline overrides before measuring.
+    this.headerEl.style.paddingRight = "";
+    this.titleEl.style.paddingTop = "";
+
     const closeButton = this.modalEl.querySelector<HTMLElement>(
       "button.modal-close-button, .modal-close-button, button[aria-label='Close'], .modal-close",
     );
     if (!closeButton) {
-      this.headerEl.style.paddingRight = "";
       return;
     }
 
-    const headerRect = this.headerEl.getBoundingClientRect();
     const closeRect = closeButton.getBoundingClientRect();
+    let headerRect = this.headerEl.getBoundingClientRect();
+
+    const headerCenterY = (headerRect.top + headerRect.bottom) / 2;
+    const closeCenterY = (closeRect.top + closeRect.bottom) / 2;
+    const delta = closeCenterY - headerCenterY;
+    const offsetY = Math.min(6, Math.max(-6, Math.round(delta)));
+
+    if (Math.abs(offsetY) >= 1) {
+      const computed = window.getComputedStyle(this.titleEl);
+      const basePaddingTopRaw = Number.parseFloat(computed.paddingTop);
+      const basePaddingTop = Number.isFinite(basePaddingTopRaw) ? basePaddingTopRaw : 0;
+      const nextPaddingTop = Math.max(0, basePaddingTop + offsetY);
+      this.titleEl.style.paddingTop = `${nextPaddingTop}px`;
+      headerRect = this.headerEl.getBoundingClientRect();
+    }
+
     const overlapsVertically = headerRect.top < closeRect.bottom && headerRect.bottom > closeRect.top;
 
     if (!overlapsVertically) {
@@ -319,11 +337,27 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
-    const reviewTitle = this.plugin.t("modal.header.review");
-    const reviewHint = this.plugin.t("modal.header.reviewHint");
-    const finalTitle = this.plugin.t("modal.header.final");
-    const finalHint = this.plugin.t("modal.header.finalHint");
-    this.helpTooltipContentEl.textContent = `${reviewTitle}: ${reviewHint}\n${finalTitle}: ${finalHint}`;
+    const container = this.helpTooltipContentEl;
+    container.empty();
+
+    const createSection = (title: string, hint: string): void => {
+      const section = container.createDiv({ cls: "help-tooltip-section" });
+      section.createDiv({ cls: "help-tooltip-section-title", text: title });
+
+      const list = section.createEl("ul", { cls: "help-tooltip-section-list" });
+      const items = hint
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      for (const item of items) {
+        list.createEl("li", { text: item });
+      }
+    };
+
+    createSection(this.plugin.t("modal.header.review"), this.plugin.t("modal.header.reviewHint"));
+    createSection(this.plugin.t("modal.header.final"), this.plugin.t("modal.header.finalHint"));
+    createSection(this.plugin.t("modal.help.controlsTitle"), this.plugin.t("modal.help.controlsHint"));
   }
 
   private showHelpTooltip(): void {
