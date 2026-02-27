@@ -20,6 +20,9 @@ type EditorSnapshot = {
   selectionEnd: number;
 };
 
+const REVIEW_RECOMPUTE_DEBOUNCE_MS = 180;
+const REVIEW_RECOMPUTE_IDLE_TIMEOUT_MS = 600;
+
 export interface ReviewDiffOptions {
   originalText: string;
   initialFinalText: string;
@@ -67,6 +70,13 @@ export class ReviewDiffModal extends Modal {
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingScrollFrame: number | null = null;
   private inputDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private reviewRecomputeIdleCallbackId: number | null = null;
+  private reviewRecomputeFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingReviewRevision: number | null = null;
+  private overlayRenderFrame: number | null = null;
+  private pendingOverlayAnchorIndex: number | null | undefined = undefined;
+  private pendingOverlayNeedsSync = false;
+  private lastRenderedOverlayAnchorIndex: number | null = null;
 
   private fontDisplayEl: HTMLSpanElement | null = null;
   private diffGranularityBtnEls: Partial<Record<DiffGranularityMode, HTMLButtonElement>> = {};
@@ -197,6 +207,7 @@ export class ReviewDiffModal extends Modal {
 
     const leftContent = leftPanel.createDiv({ cls: "panel-content" });
     const reviewViewEl = leftContent.createDiv({ cls: "review-view" });
+    reviewViewEl.setAttribute("aria-busy", "false");
     this.reviewViewEl = reviewViewEl;
 
     const rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel editable final" });
@@ -581,13 +592,67 @@ export class ReviewDiffModal extends Modal {
   }
 
   private queueRecompute(): void {
+    this.pendingReviewRevision = this.revisionId;
+    this.setReviewUpdating(true);
+
     if (this.inputDebounceTimer) {
       clearTimeout(this.inputDebounceTimer);
     }
+    this.cancelIdleReviewRecompute();
+
     this.inputDebounceTimer = setTimeout(() => {
       this.inputDebounceTimer = null;
-      this.renderAll({ immediate: true });
-    }, 200);
+      const revisionToRender = this.pendingReviewRevision;
+      if (revisionToRender === null) {
+        this.setReviewUpdating(false);
+        return;
+      }
+      this.scheduleIdleReviewRecompute(revisionToRender);
+    }, REVIEW_RECOMPUTE_DEBOUNCE_MS);
+  }
+
+  private scheduleIdleReviewRecompute(revisionToRender: number): void {
+    const run = (): void => {
+      this.reviewRecomputeIdleCallbackId = null;
+      this.reviewRecomputeFallbackTimer = null;
+
+      if (revisionToRender !== this.revisionId) {
+        return;
+      }
+
+      this.pendingReviewRevision = null;
+      this.renderReview();
+      this.setReviewUpdating(false);
+      this.scheduleOverlayRender({ anchorIndex: this.getHoverAnchorIndex(), syncScroll: true });
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      this.reviewRecomputeIdleCallbackId = window.requestIdleCallback(() => run(), {
+        timeout: REVIEW_RECOMPUTE_IDLE_TIMEOUT_MS,
+      });
+      return;
+    }
+
+    this.reviewRecomputeFallbackTimer = setTimeout(run, 16);
+  }
+
+  private cancelIdleReviewRecompute(): void {
+    if (this.reviewRecomputeIdleCallbackId !== null && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(this.reviewRecomputeIdleCallbackId);
+      this.reviewRecomputeIdleCallbackId = null;
+    }
+    if (this.reviewRecomputeFallbackTimer) {
+      clearTimeout(this.reviewRecomputeFallbackTimer);
+      this.reviewRecomputeFallbackTimer = null;
+    }
+  }
+
+  private setReviewUpdating(isUpdating: boolean): void {
+    if (!this.reviewViewEl) {
+      return;
+    }
+    this.reviewViewEl.classList.toggle("is-updating", isUpdating);
+    this.reviewViewEl.setAttribute("aria-busy", isUpdating ? "true" : "false");
   }
 
   private renderAll({ immediate }: { immediate: boolean }): void {
@@ -595,14 +660,19 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
-    if (immediate && this.inputDebounceTimer) {
-      clearTimeout(this.inputDebounceTimer);
-      this.inputDebounceTimer = null;
+    if (immediate) {
+      if (this.inputDebounceTimer) {
+        clearTimeout(this.inputDebounceTimer);
+        this.inputDebounceTimer = null;
+      }
+      this.cancelIdleReviewRecompute();
+      this.pendingReviewRevision = null;
+      this.setReviewUpdating(false);
     }
 
     this.renderReview();
-    this.renderFinalOverlayContent({ anchorIndex: this.getHoverAnchorIndex() });
-    this.syncFinalOverlayScrollAndEdgeHints();
+    this.setReviewUpdating(false);
+    this.flushOverlayRender({ anchorIndex: this.getHoverAnchorIndex(), syncScroll: true });
   }
 
   private renderReview(): void {
@@ -831,14 +901,12 @@ export class ReviewDiffModal extends Modal {
   private setHoverFromTarget(target: ReviewTarget): void {
     if (target.kind === "change") {
       this.hoverState = { kind: "change", start: target.start, end: target.end };
-      this.renderFinalOverlayContent({ anchorIndex: target.start });
-      this.syncFinalOverlayScrollAndEdgeHints();
+      this.scheduleOverlayRender({ anchorIndex: target.start, syncScroll: true });
       return;
     }
 
     this.hoverState = { kind: "delete", pos: target.pos };
-    this.renderFinalOverlayContent({ anchorIndex: target.pos });
-    this.syncFinalOverlayScrollAndEdgeHints();
+    this.scheduleOverlayRender({ anchorIndex: target.pos, syncScroll: true });
   }
 
   private isTargetInViewport(target: ReviewTarget): boolean {
@@ -847,8 +915,7 @@ export class ReviewDiffModal extends Modal {
     }
 
     const anchorIndex = this.getTargetAnchorIndex(target);
-    this.renderFinalOverlayContent({ anchorIndex });
-    this.syncFinalOverlayScrollAndEdgeHints();
+    this.flushOverlayRender({ anchorIndex, syncScroll: true });
 
     if (!this.finalOverlayAnchorEl) {
       return true;
@@ -893,7 +960,75 @@ export class ReviewDiffModal extends Modal {
 
     this.flashInjectedRange(start, caret);
     this.scrollFinalToIndex(start);
-    this.markFinalContentChanged({ immediateRender: true });
+    this.markFinalContentChanged({ immediateRender: false });
+  }
+
+  private scheduleOverlayRender(
+    opts: { anchorIndex?: number | null; syncScroll?: boolean } = {}
+  ): void {
+    if (opts.anchorIndex !== undefined) {
+      this.pendingOverlayAnchorIndex = opts.anchorIndex;
+    }
+    if (opts.syncScroll) {
+      this.pendingOverlayNeedsSync = true;
+    }
+    if (this.overlayRenderFrame !== null) {
+      return;
+    }
+
+    this.overlayRenderFrame = window.requestAnimationFrame(() => {
+      this.overlayRenderFrame = null;
+      const anchorIndex =
+        this.pendingOverlayAnchorIndex !== undefined
+          ? this.pendingOverlayAnchorIndex
+          : this.getHoverAnchorIndex();
+      const shouldSync = this.pendingOverlayNeedsSync;
+      this.pendingOverlayAnchorIndex = undefined;
+      this.pendingOverlayNeedsSync = false;
+      this.performOverlayRender(anchorIndex, shouldSync);
+    });
+  }
+
+  private flushOverlayRender(
+    opts: { anchorIndex?: number | null; syncScroll?: boolean } = {}
+  ): void {
+    if (opts.anchorIndex !== undefined) {
+      this.pendingOverlayAnchorIndex = opts.anchorIndex;
+    }
+    if (opts.syncScroll) {
+      this.pendingOverlayNeedsSync = true;
+    }
+    if (this.overlayRenderFrame !== null) {
+      window.cancelAnimationFrame(this.overlayRenderFrame);
+      this.overlayRenderFrame = null;
+    }
+
+    const anchorIndex =
+      this.pendingOverlayAnchorIndex !== undefined
+        ? this.pendingOverlayAnchorIndex
+        : this.getHoverAnchorIndex();
+    const shouldSync = this.pendingOverlayNeedsSync;
+    this.pendingOverlayAnchorIndex = undefined;
+    this.pendingOverlayNeedsSync = false;
+    this.performOverlayRender(anchorIndex, shouldSync);
+  }
+
+  private performOverlayRender(anchorIndex: number | null, shouldSyncScroll: boolean): void {
+    this.renderFinalOverlayContent({ anchorIndex });
+    this.lastRenderedOverlayAnchorIndex = anchorIndex;
+    if (shouldSyncScroll) {
+      this.syncFinalOverlayScrollAndEdgeHints();
+    }
+  }
+
+  private clearOverlayRenderSchedule(): void {
+    if (this.overlayRenderFrame !== null) {
+      window.cancelAnimationFrame(this.overlayRenderFrame);
+      this.overlayRenderFrame = null;
+    }
+    this.pendingOverlayAnchorIndex = undefined;
+    this.pendingOverlayNeedsSync = false;
+    this.lastRenderedOverlayAnchorIndex = null;
   }
 
   private getHoverAnchorIndex(): number | null {
@@ -1040,12 +1175,16 @@ export class ReviewDiffModal extends Modal {
       this.pendingScrollFrame = null;
     }
 
-    this.renderFinalOverlayContent({ anchorIndex: index });
-    this.syncFinalOverlayScrollAndEdgeHints();
-
     this.pendingScrollFrame = window.requestAnimationFrame(() => {
       this.pendingScrollFrame = null;
-      if (!this.finalEditor || !this.finalOverlayAnchorEl) {
+      if (!this.finalEditor) {
+        return;
+      }
+
+      if (this.lastRenderedOverlayAnchorIndex !== index || !this.finalOverlayAnchorEl) {
+        this.flushOverlayRender({ anchorIndex: index, syncScroll: true });
+      }
+      if (!this.finalOverlayAnchorEl) {
         return;
       }
 
@@ -1066,20 +1205,18 @@ export class ReviewDiffModal extends Modal {
 
     this.flashRange =
       start === end ? { start, end, kind: "caret" } : { start, end, kind: "range" };
-    this.renderFinalOverlayContent({ anchorIndex: start });
-    this.syncFinalOverlayScrollAndEdgeHints();
+    this.scheduleOverlayRender({ anchorIndex: start, syncScroll: true });
 
     this.flashTimer = setTimeout(() => {
       this.flashRange = null;
       this.flashTimer = null;
-      this.renderFinalOverlayContent({ anchorIndex: this.getHoverAnchorIndex() });
-      this.syncFinalOverlayScrollAndEdgeHints();
+      this.scheduleOverlayRender({ anchorIndex: this.getHoverAnchorIndex(), syncScroll: true });
     }, 650);
   }
 
   private clearHover(): void {
     this.hoverState = null;
-    this.renderFinalOverlayContent({ anchorIndex: null });
+    this.scheduleOverlayRender({ anchorIndex: null });
     this.setFinalEdgeHintsVisible(false, false);
   }
 
@@ -1309,6 +1446,10 @@ export class ReviewDiffModal extends Modal {
       clearTimeout(this.inputDebounceTimer);
       this.inputDebounceTimer = null;
     }
+    this.cancelIdleReviewRecompute();
+    this.pendingReviewRevision = null;
+    this.setReviewUpdating(false);
+    this.clearOverlayRenderSchedule();
     if (this.tooltipHideTimer) {
       clearTimeout(this.tooltipHideTimer);
       this.tooltipHideTimer = null;
