@@ -1375,10 +1375,9 @@ export class ReviewDiffModal extends Modal {
     decreaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.decreaseAriaLabel"));
 
     this.fontDisplayEl = fontControlsContainer.createEl("span", {
-      text: "A",
+      text: `${this.fontSize}px`,
       cls: "hybrid-font-display",
     });
-    this.fontDisplayEl.style.fontSize = `${this.fontSize}px`;
     this.fontDisplayEl.setAttribute("title", `${this.fontSize}px`);
 
     const increaseBtn = fontControlsContainer.createEl("button", { cls: "btn btn-ghost hybrid-font-btn" });
@@ -1452,7 +1451,7 @@ export class ReviewDiffModal extends Modal {
     this.fontSize = newSize;
     this.modalEl.setCssProps({ "--hybrid-font-size": `${this.fontSize}px` });
     if (this.fontDisplayEl) {
-      this.fontDisplayEl.style.fontSize = `${this.fontSize}px`;
+      this.fontDisplayEl.setText(`${this.fontSize}px`);
       this.fontDisplayEl.setAttribute("title", `${this.fontSize}px`);
     }
 
