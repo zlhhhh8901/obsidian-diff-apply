@@ -93,6 +93,7 @@
   /* Tooltip */
   --tooltip-bg: rgba(20, 20, 23, 0.96);
   --tooltip-text: rgba(255, 255, 255, 0.92);
+  --invisible-char-color: color-mix(in srgb, var(--text-muted, #57606a) 78%, #8ea6bc 22%);
 
   /* Final panel hover/caret */
   --final-hover-bg: rgba(255, 165, 0, 0.26);
@@ -146,6 +147,7 @@
   /* Tooltip (dark mode) */
   --tooltip-bg: rgba(38, 38, 42, 0.98);
   --tooltip-text: rgba(228, 228, 231, 0.95);
+  --invisible-char-color: color-mix(in srgb, var(--text-muted, #a7afb8) 78%, #bbd4e8 22%);
 
   /* Final panel hover/caret (dark mode) */
   --final-hover-bg: rgba(255, 165, 0, 0.2);
@@ -277,9 +279,10 @@
   height: var(--icon-sm);
 }
 
+.merge-conflict-view .merge-header-help:focus,
 .merge-conflict-view .merge-header-help:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: none;
 }
 
 .hybrid-diff-container {
@@ -889,6 +892,10 @@
   background: transparent;
   color: var(--text-normal);
   text-decoration-line: none;
+}
+
+.review-diff-modal .invisible-char {
+  color: var(--invisible-char-color, var(--text-faint, #8c959f));
 }
 
 .review-diff-modal .review-change.is-armed,

@@ -116,6 +116,7 @@ export class ReviewDiffModal extends Modal {
     const headerActions = header.createDiv({ cls: "merge-header-actions" });
     const helpBtn = headerActions.createEl("button", { cls: "merge-header-help" });
     helpBtn.type = "button";
+    helpBtn.tabIndex = -1;
     setIcon(helpBtn, "help-circle");
     helpBtn.removeAttribute("aria-label");
     helpBtn.removeAttribute("title");
@@ -647,6 +648,50 @@ export class ReviewDiffModal extends Modal {
     this.clearHoverAndTooltip();
   }
 
+  private renderTextWithInvisibleChars(container: HTMLElement, text: string): void {
+    const normalizedText = text.replace(/\r\n?/g, "\n");
+    const frag = document.createDocumentFragment();
+    let plainChunk = "";
+
+    const flushPlainChunk = (): void => {
+      if (plainChunk.length === 0) {
+        return;
+      }
+      frag.appendChild(document.createTextNode(plainChunk));
+      plainChunk = "";
+    };
+
+    for (const char of normalizedText) {
+      if (char === " ") {
+        flushPlainChunk();
+        frag.appendChild(this.createInvisibleCharNode("·"));
+        continue;
+      }
+      if (char === "\t") {
+        flushPlainChunk();
+        frag.appendChild(this.createInvisibleCharNode("⇥"));
+        continue;
+      }
+      if (char === "\n") {
+        flushPlainChunk();
+        frag.appendChild(this.createInvisibleCharNode("↵"));
+        frag.appendChild(document.createTextNode("\n"));
+        continue;
+      }
+      plainChunk += char;
+    }
+
+    flushPlainChunk();
+    container.appendChild(frag);
+  }
+
+  private createInvisibleCharNode(symbol: string): HTMLSpanElement {
+    const symbolEl = document.createElement("span");
+    symbolEl.className = "invisible-char";
+    symbolEl.textContent = symbol;
+    return symbolEl;
+  }
+
   private getClosestReviewTarget(target: EventTarget | null): HTMLElement | null {
     if (!(target instanceof Element)) {
       return null;
@@ -1059,10 +1104,16 @@ export class ReviewDiffModal extends Modal {
     }
 
     const originalText = target.dataset.originalText ?? "";
-    const originalBody =
-      originalText.length > 0 ? originalText : this.plugin.t("modal.tooltip.originalEmpty");
     const prefix = this.plugin.t("modal.tooltip.originalPrefix");
-    this.tooltipContentEl.textContent = `${prefix}\n${originalBody}`;
+    this.tooltipContentEl.textContent = "";
+    this.tooltipContentEl.appendChild(document.createTextNode(`${prefix}\n`));
+    if (originalText.length > 0) {
+      this.renderTextWithInvisibleChars(this.tooltipContentEl, originalText);
+    } else {
+      this.tooltipContentEl.appendChild(
+        document.createTextNode(this.plugin.t("modal.tooltip.originalEmpty")),
+      );
+    }
 
     this.tooltipEl.toggleClass("is-visible", true);
 
