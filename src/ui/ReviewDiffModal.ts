@@ -129,15 +129,6 @@ export class ReviewDiffModal extends Modal {
     setIcon(brandIcon, "git-merge");
     brand.createEl("span", { text: this.plugin.t("modal.brand.title") });
 
-    const headerActions = header.createDiv({ cls: "merge-header-actions" });
-    const helpBtn = headerActions.createEl("button", { cls: "merge-header-help" });
-    helpBtn.type = "button";
-    helpBtn.tabIndex = 0;
-    setIcon(helpBtn, "help-circle");
-    helpBtn.setAttribute("aria-label", this.plugin.t("modal.help.ariaLabel"));
-    helpBtn.setAttribute("title", this.plugin.t("modal.help.ariaLabel"));
-    this.helpButtonEl = helpBtn;
-
     this.modalEl.addClass("hybrid-diff-modal");
     this.modalEl.addClass("merge-conflict-view");
     this.modalEl.addClass("review-diff-modal");
@@ -1384,6 +1375,13 @@ export class ReviewDiffModal extends Modal {
     setIcon(increaseBtn, "plus");
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
+
+    const helpBtn = leftSection.createEl("button", {
+      cls: "btn btn-ghost hybrid-font-btn hybrid-help-btn",
+    });
+    helpBtn.type = "button";
+    setIcon(helpBtn, "help-circle");
+    this.helpButtonEl = helpBtn;
 
     const cancelBtn = rightSection.createEl("button", { cls: "btn btn-secondary hybrid-cancel-btn" });
     cancelBtn.type = "button";

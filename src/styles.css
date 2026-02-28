@@ -244,49 +244,6 @@
   height: var(--icon-md);
 }
 
-.merge-conflict-view .merge-header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.merge-conflict-view .merge-header-help {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  border: 0;
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  appearance: none;
-  -webkit-appearance: none;
-  box-shadow: none;
-  opacity: 0.85;
-  transition:
-    color var(--transition-fast) var(--ease-out),
-    opacity var(--transition-fast) var(--ease-out);
-}
-
-.merge-conflict-view .merge-header-help:hover {
-  background: transparent;
-  color: var(--text-primary);
-  opacity: 1;
-}
-
-.merge-conflict-view .merge-header-help svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-}
-
-.merge-conflict-view .merge-header-help:focus,
-.merge-conflict-view .merge-header-help:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
 .hybrid-diff-container {
   display: flex;
   flex-direction: column;
@@ -362,7 +319,7 @@
 }
 
 .hybrid-panel.editable .panel-header {
-  background: var(--final-pane-bg);
+  background: var(--review-pane-bg);
   color: var(--accent-color);
   font-weight: var(--font-weight-medium);
   border-bottom-color: var(--border-color);
@@ -656,6 +613,10 @@
 .merge-conflict-view .hybrid-font-btn svg {
   width: 14px;
   height: 14px;
+}
+
+.merge-conflict-view .hybrid-help-btn {
+  margin-left: var(--space-1);
 }
 
 /* ========================================
