@@ -502,6 +502,15 @@ export class ReviewDiffModal extends Modal {
     }
 
     const key = event.key.toLowerCase();
+    const isApply = key === "enter" && !event.shiftKey;
+    if (isApply) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.applyAndClose();
+      return;
+    }
+
     const isUndo = key === "z" && !event.shiftKey;
     const isRedo = key === "y" || (key === "z" && event.shiftKey);
     if (!isUndo && !isRedo) {
@@ -1334,6 +1343,14 @@ export class ReviewDiffModal extends Modal {
     this.tooltipActiveTarget = null;
   }
 
+  private applyAndClose(): void {
+    if (!this.finalEditor) {
+      return;
+    }
+    this.onApply(this.finalEditor.value);
+    this.close();
+  }
+
   private addActions(container: HTMLElement): void {
     const footer = container.createEl("footer");
     const leftSection = footer.createDiv({ cls: "footer-section" });
@@ -1398,19 +1415,14 @@ export class ReviewDiffModal extends Modal {
     });
     applyBtn.type = "button";
     applyBtn.setAttribute("aria-label", this.plugin.t("modal.action.apply"));
-    applyBtn.setAttribute("title", this.plugin.t("modal.action.apply"));
+    applyBtn.setAttribute("title", `${this.plugin.t("modal.action.apply")} (⌘↵)`);
     const applyIcon = applyBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
     setIcon(applyIcon, "check");
     applyBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.apply") });
+    applyBtn.createSpan({ cls: "btn-shortcut", text: "⌘↵", attr: { "aria-hidden": "true" } });
 
     cancelBtn.addEventListener("click", () => this.close());
-    applyBtn.addEventListener("click", () => {
-      if (!this.finalEditor) {
-        return;
-      }
-      this.onApply(this.finalEditor.value);
-      this.close();
-    });
+    applyBtn.addEventListener("click", () => this.applyAndClose());
 
     decreaseBtn.addEventListener("click", () => this.updateFontSize(Math.max(10, this.fontSize - 1)));
     increaseBtn.addEventListener("click", () => this.updateFontSize(Math.min(24, this.fontSize + 1)));

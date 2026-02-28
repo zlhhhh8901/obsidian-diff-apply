@@ -9,7 +9,7 @@ const en = {
     "Hover a change to preview the original text.\nClick a marker to restore the original into Final.\nIf a marker is offscreen: click once to jump, click again to restore.",
   "modal.header.final": "Final",
   "modal.header.finalHint":
-    "Edit the result (undo/redo: Mod+Z / Mod+Shift+Z / Mod+Y).\nApply replaces the selected text in the editor.",
+    "Edit the result (undo/redo: Mod+Z / Mod+Shift+Z / Mod+Y).\nApply replaces the selected text in the editor (shortcut: Mod+Enter).",
   "modal.brand.title": "Diff & Apply",
   "modal.help.ariaLabel": "How it works",
   "modal.help.controlsTitle": "Controls",

@@ -36,8 +36,11 @@
 2. Modify `Final` and click `Apply`.
 3. Expected: only selected range is replaced; outside text is unchanged.
 
-4. Reopen modal, modify `Final`, then click `Cancel` (or press `Esc`).
-5. Expected: note content remains unchanged.
+4. Reopen modal, modify `Final`, then press `Mod+Enter`.
+5. Expected: same result as clicking `Apply` (selected range replaced, modal closes).
+
+6. Reopen modal, modify `Final`, then click `Cancel` (or press `Esc`).
+7. Expected: note content remains unchanged.
 
 ## 5. Diff granularity
 
