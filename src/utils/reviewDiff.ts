@@ -74,7 +74,7 @@ function tokenizeInlineDiff(text: string, granularity: DiffGranularity): string[
       continue;
     }
 
-    const matches = part.match(/\\s+|\\S+\\s*/g);
+    const matches = part.match(/\s+|\S+\s*/g);
     if (matches) {
       tokens.push(...matches);
     }

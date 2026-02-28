@@ -54,4 +54,26 @@ describe("review diff ops", () => {
     expect(op.finalStart).toBe(2);
     expect(op.finalEnd).toBe(3);
   });
+
+  it("tokenizes word diffs without Intl.Segmenter (fallback path)", () => {
+    const originalSegmenter = (Intl as unknown as { Segmenter?: unknown }).Segmenter;
+    try {
+      (Intl as unknown as { Segmenter?: unknown }).Segmenter = undefined;
+
+      const ops = computeReviewOps("hello world", "hello brave world", "word");
+
+      expect(ops.map((o) => o.kind)).toEqual(["equal", "change", "equal"]);
+      const change = ops[1];
+      if (change.kind !== "change") {
+        throw new Error("Expected a change op");
+      }
+      expect(change.changeType).toBe("insert");
+      expect(change.finalText).toBe("brave ");
+      expect(change.originalText).toBe("");
+      expect(change.finalStart).toBe(6);
+      expect(change.finalEnd).toBe(12);
+    } finally {
+      (Intl as unknown as { Segmenter?: unknown }).Segmenter = originalSegmenter;
+    }
+  });
 });
