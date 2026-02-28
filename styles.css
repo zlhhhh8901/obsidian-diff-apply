@@ -562,20 +562,35 @@
   margin-top: -2px;
 }
 
+.merge-conflict-view .hybrid-cancel-btn .btn-icon,
+.merge-conflict-view .hybrid-apply-btn .btn-icon {
+  display: none;
+}
+
+.merge-conflict-view .hybrid-cancel-btn .btn-shortcut,
 .merge-conflict-view .hybrid-apply-btn .btn-shortcut {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 1px 4px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  background-color: rgba(255, 255, 255, 0.18);
-  color: var(--btn-primary-text);
   font-size: 10px;
   line-height: 1.1;
   font-weight: var(--font-weight-medium);
   letter-spacing: 0.01em;
   opacity: 0.95;
+}
+
+.merge-conflict-view .hybrid-cancel-btn .btn-shortcut {
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+}
+
+.merge-conflict-view .hybrid-apply-btn .btn-shortcut {
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background-color: rgba(255, 255, 255, 0.18);
+  color: var(--btn-primary-text);
 }
 
 .merge-conflict-view .hybrid-font-controls {
@@ -671,7 +686,15 @@
     justify-content: center;
   }
 
+  .merge-conflict-view .hybrid-cancel-btn .btn-icon,
+  .merge-conflict-view .hybrid-apply-btn .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .merge-conflict-view footer .btn-label,
+  .merge-conflict-view footer .btn-shortcut,
   .merge-conflict-view footer .hybrid-font-display {
     display: none;
   }

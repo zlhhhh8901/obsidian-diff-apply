@@ -1405,10 +1405,11 @@ export class ReviewDiffModal extends Modal {
     const cancelBtn = rightSection.createEl("button", { cls: "btn btn-secondary hybrid-cancel-btn" });
     cancelBtn.type = "button";
     cancelBtn.setAttribute("aria-label", this.plugin.t("modal.action.cancel"));
-    cancelBtn.setAttribute("title", this.plugin.t("modal.action.cancel"));
+    cancelBtn.setAttribute("title", `${this.plugin.t("modal.action.cancel")} (esc)`);
     const cancelIcon = cancelBtn.createSpan({ cls: "btn-icon", attr: { "aria-hidden": "true" } });
     setIcon(cancelIcon, "x");
     cancelBtn.createSpan({ cls: "btn-label", text: this.plugin.t("modal.action.cancel") });
+    cancelBtn.createSpan({ cls: "btn-shortcut", text: "esc", attr: { "aria-hidden": "true" } });
 
     const applyBtn = rightSection.createEl("button", {
       cls: "btn btn-primary hybrid-apply-btn",
