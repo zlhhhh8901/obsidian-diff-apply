@@ -3,6 +3,7 @@ const en = {
   "menu.hybrid.title": "Review & Apply",
 
   "notice.clipboardReadFailed": "Failed to read clipboard content (permission?).",
+  "notice.selectionRequired": "Select some text before running Review & Apply.",
 
   "modal.header.review": "Review",
   "modal.header.reviewHint":

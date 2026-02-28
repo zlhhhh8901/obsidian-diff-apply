@@ -1088,13 +1088,16 @@
   width: 22px;
   height: 22px;
   border-radius: var(--radius-full, 9999px);
-  background: var(--accent-tint);
-  color: var(--text-secondary);
+  background: var(--final-caret-ring-bg);
+  color: var(--final-caret-color-end);
+  border: 1px solid var(--final-caret-ring-border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    0 0 0 1px var(--final-caret-ring-outline),
+    0 0 10px var(--final-caret-glow);
   opacity: 0;
   transform: translateY(4px);
   transition:

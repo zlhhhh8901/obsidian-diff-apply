@@ -1,6 +1,6 @@
 {
   "ui": {
-    "fontSize": 16,
+    "fontSize": 15,
     "diffGranularity": "word"
   }
 }
