@@ -641,6 +641,11 @@
   background-color: var(--accent-tint);
 }
 
+.merge-conflict-view .hybrid-font-btn.is-active {
+  color: var(--text-primary);
+  background-color: color-mix(in srgb, var(--accent-color) 18%, transparent);
+}
+
 .merge-conflict-view .hybrid-font-btn svg {
   width: 14px;
   height: 14px;
@@ -802,6 +807,12 @@
   scrollbar-color: var(--hybrid-scrollbar-thumb) var(--hybrid-scrollbar-track);
 }
 
+.review-diff-modal .review-view:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-color) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: var(--radius-m, 6px);
+}
+
 .review-diff-modal .review-view::-webkit-scrollbar {
   width: 8px;
 }
@@ -904,6 +915,31 @@
 }
 
 .review-diff-modal .review-delete.is-armed {
+  background: transparent;
+  color: var(--text-normal);
+  text-decoration-line: none;
+}
+
+.review-diff-modal .review-change.is-active,
+.review-diff-modal .review-delete.is-active {
+  outline: 2px solid color-mix(in srgb, var(--accent-color) 70%, transparent);
+  outline-offset: 1px;
+}
+
+.review-diff-modal .review-change.is-active[data-change-type="insert"] {
+  background: transparent;
+  color: color-mix(in srgb, var(--text-normal) 50%, transparent);
+  text-decoration-line: line-through;
+  text-decoration-style: solid;
+  text-decoration-thickness: 1px;
+  text-decoration-color: currentColor;
+}
+
+.review-diff-modal .review-change.is-active[data-change-type="replace"] {
+  background: color-mix(in srgb, var(--accent-color) 22%, transparent);
+}
+
+.review-diff-modal .review-delete.is-active {
   background: transparent;
   color: var(--text-normal);
   text-decoration-line: none;

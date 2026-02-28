@@ -9,6 +9,10 @@ type ReviewTarget =
   | { kind: "change"; start: number; end: number; originalText: string }
   | { kind: "delete"; pos: number; originalText: string };
 
+type HighlightTargetState =
+  | { kind: "change"; start: number; end: number }
+  | { kind: "delete"; pos: number };
+
 type ArmedInjectionTarget = {
   target: ReviewTarget;
   revisionId: number;
@@ -57,10 +61,14 @@ export class ReviewDiffModal extends Modal {
   private finalEdgeHintUpEl: HTMLDivElement | null = null;
   private finalEdgeHintDownEl: HTMLDivElement | null = null;
 
-  private hoverState:
-    | { kind: "change"; start: number; end: number }
-    | { kind: "delete"; pos: number }
-    | null = null;
+  private hoverState: HighlightTargetState | null = null;
+
+  private keyboardTargets: Array<{ el: HTMLElement; target: ReviewTarget; anchorIndex: number }> = [];
+  private activeTargetIndex: number | null = null;
+  private activeTargetEl: HTMLElement | null = null;
+  private activeTargetState: HighlightTargetState | null = null;
+  private pendingSelectIndexAfterRender: number | null = null;
+  private isKeyboardNavMode = false;
 
   private armedInjectionTarget: ArmedInjectionTarget | null = null;
   private armedTargetElement: HTMLElement | null = null;
@@ -91,6 +99,8 @@ export class ReviewDiffModal extends Modal {
   private boundHandleFinalCompositionStart: (() => void) | null = null;
   private boundHandleFinalCompositionEnd: (() => void) | null = null;
   private boundHandleFinalKeyDown: ((event: KeyboardEvent) => void) | null = null;
+  private boundHandleFinalPointerDown: ((event: PointerEvent) => void) | null = null;
+  private boundHandleModalKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private boundHandleReviewPointerOver: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewPointerOut: ((event: PointerEvent) => void) | null = null;
   private boundHandleReviewClick: ((event: MouseEvent) => void) | null = null;
@@ -109,6 +119,8 @@ export class ReviewDiffModal extends Modal {
   private boundHandleHelpBlur: (() => void) | null = null;
   private boundHandleHelpClick: ((event: MouseEvent) => void) | null = null;
   private boundHandleWindowResize: (() => void) | null = null;
+
+  private keyboardNavButtonEl: HTMLButtonElement | null = null;
 
   constructor(app: App, opts: ReviewDiffOptions) {
     super(app);
@@ -144,6 +156,8 @@ export class ReviewDiffModal extends Modal {
     this.createTooltip();
     this.createHelpTooltip();
     this.registerEditorUndoRedoKeymaps();
+    this.boundHandleModalKeyDown = (event) => this.handleModalKeyDown(event);
+    this.modalEl.addEventListener("keydown", this.boundHandleModalKeyDown, { capture: true });
     this.boundHandleWindowResize = () => this.syncHeaderPaddingForCloseButton();
     window.addEventListener("resize", this.boundHandleWindowResize);
     window.requestAnimationFrame(() => this.syncHeaderPaddingForCloseButton());
@@ -204,6 +218,7 @@ export class ReviewDiffModal extends Modal {
     const leftContent = leftPanel.createDiv({ cls: "panel-content" });
     const reviewViewEl = leftContent.createDiv({ cls: "review-view" });
     reviewViewEl.setAttribute("aria-busy", "false");
+    reviewViewEl.setAttribute("tabindex", "0");
     this.reviewViewEl = reviewViewEl;
 
     const rightPanel = editorsContainer.createDiv({ cls: "hybrid-panel editable final" });
@@ -245,6 +260,13 @@ export class ReviewDiffModal extends Modal {
 
     this.boundHandleFinalKeyDown = (event) => this.handleFinalKeyDown(event);
     finalEditor.addEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
+
+    this.boundHandleFinalPointerDown = () => {
+      if (this.isKeyboardNavMode) {
+        this.setKeyboardNavMode(false);
+      }
+    };
+    finalEditor.addEventListener("pointerdown", this.boundHandleFinalPointerDown, { capture: true });
 
     this.boundHandleReviewPointerOver = (event) => this.handleReviewPointerOver(event);
     this.boundHandleReviewPointerOut = (event) => this.handleReviewPointerOut(event);
@@ -324,7 +346,7 @@ export class ReviewDiffModal extends Modal {
     this.tooltipContentEl = content;
 
     this.boundHandleTooltipPointerEnter = () => this.cancelHideTooltip();
-    this.boundHandleTooltipPointerLeave = () => this.scheduleHideTooltip();
+    this.boundHandleTooltipPointerLeave = () => this.scheduleHideTooltip({ restoreActive: true });
     tooltip.addEventListener("pointerenter", this.boundHandleTooltipPointerEnter);
     tooltip.addEventListener("pointerleave", this.boundHandleTooltipPointerLeave);
   }
@@ -398,6 +420,7 @@ export class ReviewDiffModal extends Modal {
 
     createSection(this.plugin.t("modal.header.review"), this.plugin.t("modal.header.reviewHint"));
     createSection(this.plugin.t("modal.header.final"), this.plugin.t("modal.header.finalHint"));
+    createSection(this.plugin.t("modal.help.keyboardTitle"), this.plugin.t("modal.help.keyboardHint"));
     createSection(this.plugin.t("modal.help.controlsTitle"), this.plugin.t("modal.help.controlsHint"));
   }
 
@@ -524,6 +547,79 @@ export class ReviewDiffModal extends Modal {
     if (!changed) {
       return;
     }
+  }
+
+  private handleModalKeyDown(event: KeyboardEvent): void {
+    if (event.defaultPrevented || event.isComposing || this.isComposing) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    const isMod = event.metaKey || event.ctrlKey;
+
+    const isToggleKeyboardNav = isMod && event.shiftKey && !event.altKey && key === "k";
+    if (isToggleKeyboardNav) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.setKeyboardNavMode(!this.isKeyboardNavMode);
+      return;
+    }
+
+    if (!this.isKeyboardNavMode) {
+      return;
+    }
+
+    if (event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.selectNextTarget();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.selectPrevTarget();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.applyActiveTarget();
+    }
+  }
+
+  private setKeyboardNavMode(enabled: boolean): void {
+    if (enabled === this.isKeyboardNavMode) {
+      return;
+    }
+
+    this.isKeyboardNavMode = enabled;
+    this.updateKeyboardNavButtonUI();
+
+    if (!this.isKeyboardNavMode) {
+      this.clearActiveTarget();
+      return;
+    }
+
+    this.rebuildKeyboardTargets();
+  }
+
+  private updateKeyboardNavButtonUI(): void {
+    if (!this.keyboardNavButtonEl) {
+      return;
+    }
+    this.keyboardNavButtonEl.classList.toggle("is-active", this.isKeyboardNavMode);
+    this.keyboardNavButtonEl.setAttribute("aria-pressed", this.isKeyboardNavMode ? "true" : "false");
   }
 
   private resetEditorHistory(): void {
@@ -756,6 +852,7 @@ export class ReviewDiffModal extends Modal {
 
     this.reviewViewEl.appendChild(frag);
     this.clearHoverAndTooltip();
+    this.rebuildKeyboardTargets();
   }
 
   private renderTextWithInvisibleChars(container: HTMLElement, text: string): void {
@@ -880,7 +977,7 @@ export class ReviewDiffModal extends Modal {
       return;
     }
 
-    this.scheduleHideTooltip();
+    this.scheduleHideTooltip({ restoreActive: true });
     this.clearHover();
   }
 
@@ -897,6 +994,7 @@ export class ReviewDiffModal extends Modal {
 
     event.preventDefault();
     this.setHoverFromTarget(target);
+    this.syncActiveTargetToElement(el, target);
 
     const inViewport = this.isTargetInViewport(target);
     if (inViewport) {
@@ -979,6 +1077,11 @@ export class ReviewDiffModal extends Modal {
   }
 
   private injectTarget(target: ReviewTarget): void {
+    this.mutateFinalByTarget(target);
+    this.markFinalContentChanged({ immediateRender: this.isKeyboardNavMode });
+  }
+
+  private mutateFinalByTarget(target: ReviewTarget): void {
     if (!this.finalEditor) {
       return;
     }
@@ -1000,7 +1103,6 @@ export class ReviewDiffModal extends Modal {
 
     this.flashInjectedRange(start, caret);
     this.scrollFinalToIndex(start);
-    this.markFinalContentChanged({ immediateRender: false });
   }
 
   private scheduleOverlayRender(
@@ -1072,10 +1174,11 @@ export class ReviewDiffModal extends Modal {
   }
 
   private getHoverAnchorIndex(): number | null {
-    if (!this.hoverState) {
+    const state = this.hoverState ?? this.activeTargetState;
+    if (!state) {
       return null;
     }
-    return this.hoverState.kind === "delete" ? this.hoverState.pos : this.hoverState.start;
+    return state.kind === "delete" ? state.pos : state.start;
   }
 
   private renderFinalOverlayContent(opts: { anchorIndex: number | null }): void {
@@ -1084,11 +1187,12 @@ export class ReviewDiffModal extends Modal {
     }
 
     const value = this.finalEditor.value ?? "";
+    const highlightState = this.hoverState ?? this.activeTargetState;
     const hoverRange =
-      this.hoverState?.kind === "change"
-        ? { start: this.hoverState.start, end: this.hoverState.end }
+      highlightState?.kind === "change"
+        ? { start: highlightState.start, end: highlightState.end }
         : null;
-    const hoverCaret = this.hoverState?.kind === "delete" ? this.hoverState.pos : null;
+    const hoverCaret = highlightState?.kind === "delete" ? highlightState.pos : null;
     const flash = this.flashRange;
 
     const anchorIndexRaw =
@@ -1191,7 +1295,7 @@ export class ReviewDiffModal extends Modal {
   }
 
   private updateEdgeHintsFromAnchor(): void {
-    if (!this.finalEditor || !this.finalOverlayAnchorEl || !this.hoverState) {
+    if (!this.finalEditor || !this.finalOverlayAnchorEl || (!this.hoverState && !this.activeTargetState)) {
       this.setFinalEdgeHintsVisible(false, false);
       return;
     }
@@ -1256,13 +1360,245 @@ export class ReviewDiffModal extends Modal {
 
   private clearHover(): void {
     this.hoverState = null;
-    this.scheduleOverlayRender({ anchorIndex: null });
-    this.setFinalEdgeHintsVisible(false, false);
+    this.scheduleOverlayRender({ anchorIndex: this.getHoverAnchorIndex(), syncScroll: true });
   }
 
   private clearHoverAndTooltip(): void {
     this.clearHover();
     this.hideTooltip();
+  }
+
+  private clearActiveTarget(): void {
+    this.pendingSelectIndexAfterRender = null;
+    this.activeTargetIndex = null;
+    this.activeTargetState = null;
+    if (this.activeTargetEl) {
+      this.activeTargetEl.classList.remove("is-active");
+      this.activeTargetEl = null;
+    }
+    this.hideTooltip();
+    this.scheduleOverlayRender({ anchorIndex: this.getHoverAnchorIndex(), syncScroll: true });
+  }
+
+  private rebuildKeyboardTargets(): void {
+    if (!this.reviewViewEl) {
+      return;
+    }
+
+    const markerEls = Array.from(
+      this.reviewViewEl.querySelectorAll<HTMLElement>(".review-change, .review-delete"),
+    );
+
+    const nextTargets: Array<{ el: HTMLElement; target: ReviewTarget; anchorIndex: number }> = [];
+    for (const el of markerEls) {
+      const target = this.parseReviewTarget(el);
+      if (!target) {
+        continue;
+      }
+      nextTargets.push({ el, target, anchorIndex: this.getTargetAnchorIndex(target) });
+    }
+
+    this.keyboardTargets = nextTargets;
+
+    if (this.pendingSelectIndexAfterRender !== null) {
+      const desiredIndex = this.pendingSelectIndexAfterRender;
+      this.pendingSelectIndexAfterRender = null;
+      if (this.keyboardTargets.length === 0) {
+        this.clearActiveTarget();
+        return;
+      }
+      const clamped = Math.max(0, Math.min(desiredIndex, this.keyboardTargets.length - 1));
+      this.setActiveTargetIndex(clamped);
+      return;
+    }
+
+    if (this.activeTargetIndex === null) {
+      return;
+    }
+
+    if (this.activeTargetIndex < 0 || this.activeTargetIndex >= this.keyboardTargets.length) {
+      this.clearActiveTarget();
+      return;
+    }
+
+    const item = this.keyboardTargets[this.activeTargetIndex];
+    if (!item) {
+      this.clearActiveTarget();
+      return;
+    }
+
+    if (this.activeTargetEl && this.activeTargetEl !== item.el) {
+      this.activeTargetEl.classList.remove("is-active");
+    }
+    this.activeTargetEl = item.el;
+    this.activeTargetEl.classList.add("is-active");
+    this.activeTargetState =
+      item.target.kind === "change"
+        ? { kind: "change", start: item.target.start, end: item.target.end }
+        : { kind: "delete", pos: item.target.pos };
+    this.scheduleOverlayRender({ anchorIndex: item.anchorIndex, syncScroll: true });
+
+    if (this.isKeyboardNavMode && this.activeTargetEl) {
+      this.cancelHideTooltip();
+      this.showTooltipForReviewTarget(this.activeTargetEl);
+    }
+  }
+
+  private setActiveTargetIndex(index: number): void {
+    if (this.keyboardTargets.length === 0) {
+      this.clearActiveTarget();
+      return;
+    }
+
+    const clamped = Math.max(0, Math.min(index, this.keyboardTargets.length - 1));
+    const item = this.keyboardTargets[clamped];
+    if (!item) {
+      this.clearActiveTarget();
+      return;
+    }
+
+    this.clearArmedTarget();
+    this.hoverState = null;
+    this.hideTooltip();
+
+    if (this.activeTargetEl && this.activeTargetEl !== item.el) {
+      this.activeTargetEl.classList.remove("is-active");
+    }
+
+    this.activeTargetIndex = clamped;
+    this.activeTargetEl = item.el;
+    this.activeTargetEl.classList.add("is-active");
+    this.activeTargetState =
+      item.target.kind === "change"
+        ? { kind: "change", start: item.target.start, end: item.target.end }
+        : { kind: "delete", pos: item.target.pos };
+
+    this.activeTargetEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+    this.cancelHideTooltip();
+    this.showTooltipForReviewTarget(this.activeTargetEl);
+
+    this.scheduleOverlayRender({ anchorIndex: item.anchorIndex, syncScroll: true });
+    this.scrollFinalToIndex(item.anchorIndex);
+  }
+
+  private syncActiveTargetToElement(el: HTMLElement, target: ReviewTarget): void {
+    if (!this.isKeyboardNavMode || this.keyboardTargets.length === 0) {
+      return;
+    }
+
+    let index = this.keyboardTargets.findIndex((item) => item.el === el);
+    if (index === -1) {
+      this.rebuildKeyboardTargets();
+      index = this.keyboardTargets.findIndex((item) => item.el === el);
+    }
+    if (index === -1) {
+      return;
+    }
+
+    if (this.activeTargetEl && this.activeTargetEl !== el) {
+      this.activeTargetEl.classList.remove("is-active");
+    }
+
+    this.pendingSelectIndexAfterRender = null;
+    this.activeTargetIndex = index;
+    this.activeTargetEl = el;
+    this.activeTargetEl.classList.add("is-active");
+    this.activeTargetState =
+      target.kind === "change"
+        ? { kind: "change", start: target.start, end: target.end }
+        : { kind: "delete", pos: target.pos };
+
+    this.cancelHideTooltip();
+    this.showTooltipForReviewTarget(el);
+  }
+
+  private getKeyboardNavBaselineAnchorIndex(): number {
+    const state = this.hoverState ?? this.activeTargetState;
+    if (state) {
+      return state.kind === "delete" ? state.pos : state.start;
+    }
+
+    if (!this.finalEditor) {
+      return 0;
+    }
+
+    const value = this.finalEditor.value ?? "";
+    const raw = this.finalEditor.selectionStart ?? 0;
+    return Math.max(0, Math.min(raw, value.length));
+  }
+
+  private targetCoversAnchor(target: ReviewTarget, anchorIndex: number): boolean {
+    if (target.kind === "delete") {
+      return target.pos === anchorIndex;
+    }
+
+    return anchorIndex >= target.start && anchorIndex < target.end;
+  }
+
+  private getInitialTargetIndex(direction: "next" | "prev"): number {
+    const anchorIndex = this.getKeyboardNavBaselineAnchorIndex();
+
+    const coveringIndex = this.keyboardTargets.findIndex((item) =>
+      this.targetCoversAnchor(item.target, anchorIndex),
+    );
+    if (coveringIndex !== -1) {
+      return coveringIndex;
+    }
+
+    if (direction === "next") {
+      const nextIndex = this.keyboardTargets.findIndex((item) => item.anchorIndex >= anchorIndex);
+      return nextIndex !== -1 ? nextIndex : 0;
+    }
+
+    for (let i = this.keyboardTargets.length - 1; i >= 0; i -= 1) {
+      const item = this.keyboardTargets[i];
+      if (item && item.anchorIndex <= anchorIndex) {
+        return i;
+      }
+    }
+    return this.keyboardTargets.length - 1;
+  }
+
+  private selectNextTarget(): void {
+    if (this.keyboardTargets.length === 0) {
+      return;
+    }
+    if (this.activeTargetIndex === null) {
+      this.setActiveTargetIndex(this.getInitialTargetIndex("next"));
+      return;
+    }
+
+    this.setActiveTargetIndex((this.activeTargetIndex + 1) % this.keyboardTargets.length);
+  }
+
+  private selectPrevTarget(): void {
+    if (this.keyboardTargets.length === 0) {
+      return;
+    }
+    if (this.activeTargetIndex === null) {
+      this.setActiveTargetIndex(this.getInitialTargetIndex("prev"));
+      return;
+    }
+
+    this.setActiveTargetIndex(
+      (this.activeTargetIndex - 1 + this.keyboardTargets.length) % this.keyboardTargets.length,
+    );
+  }
+
+  private applyActiveTarget(): void {
+    if (this.activeTargetIndex === null || this.keyboardTargets.length === 0) {
+      return;
+    }
+
+    const item = this.keyboardTargets[this.activeTargetIndex];
+    if (!item) {
+      return;
+    }
+
+    const desiredIndex = this.activeTargetIndex;
+    this.pendingSelectIndexAfterRender = desiredIndex;
+    this.mutateFinalByTarget(item.target);
+    this.markFinalContentChanged({ immediateRender: true });
   }
 
   private showTooltipForReviewTarget(target: HTMLElement): void {
@@ -1315,15 +1651,20 @@ export class ReviewDiffModal extends Modal {
     this.tooltipEl.style.top = `${top}px`;
   }
 
-  private scheduleHideTooltip(): void {
+  private scheduleHideTooltip(opts: { restoreActive?: boolean } = {}): void {
     if (!this.tooltipEl) {
       return;
     }
     if (this.tooltipHideTimer) {
       clearTimeout(this.tooltipHideTimer);
     }
+    const restoreActive = !!opts.restoreActive;
     this.tooltipHideTimer = setTimeout(() => {
       this.tooltipHideTimer = null;
+      if (restoreActive && this.isKeyboardNavMode && this.activeTargetEl) {
+        this.showTooltipForReviewTarget(this.activeTargetEl);
+        return;
+      }
       this.hideTooltip();
     }, 120);
   }
@@ -1394,6 +1735,18 @@ export class ReviewDiffModal extends Modal {
     setIcon(increaseBtn, "plus");
     increaseBtn.setAttribute("aria-label", this.plugin.t("modal.fontSize.increaseAriaLabel"));
     increaseBtn.setAttribute("title", this.plugin.t("modal.fontSize.increaseAriaLabel"));
+
+    const keyboardNavBtn = leftSection.createEl("button", {
+      cls: "btn btn-ghost hybrid-font-btn hybrid-keyboard-nav-btn",
+    });
+    keyboardNavBtn.type = "button";
+    setIcon(keyboardNavBtn, "keyboard");
+    keyboardNavBtn.setAttribute("aria-label", this.plugin.t("modal.keyboardNav.title"));
+    keyboardNavBtn.setAttribute("aria-pressed", "false");
+    keyboardNavBtn.setAttribute("title", `${this.plugin.t("modal.keyboardNav.title")} (Mod+Shift+K)`);
+    keyboardNavBtn.addEventListener("click", () => this.setKeyboardNavMode(!this.isKeyboardNavMode));
+    this.keyboardNavButtonEl = keyboardNavBtn;
+    this.updateKeyboardNavButtonUI();
 
     const helpBtn = leftSection.createEl("button", {
       cls: "btn btn-ghost hybrid-font-btn hybrid-help-btn",
@@ -1477,11 +1830,17 @@ export class ReviewDiffModal extends Modal {
 
   onClose(): void {
     this.clearArmedTarget();
+    this.clearActiveTarget();
     this.cancelHideHelpTooltip();
 
     if (this.boundHandleWindowResize) {
       window.removeEventListener("resize", this.boundHandleWindowResize);
       this.boundHandleWindowResize = null;
+    }
+
+    if (this.boundHandleModalKeyDown) {
+      this.modalEl.removeEventListener("keydown", this.boundHandleModalKeyDown, { capture: true });
+      this.boundHandleModalKeyDown = null;
     }
 
     if (this.flashTimer) {
@@ -1523,6 +1882,10 @@ export class ReviewDiffModal extends Modal {
     }
     if (this.finalEditor && this.boundHandleFinalKeyDown) {
       this.finalEditor.removeEventListener("keydown", this.boundHandleFinalKeyDown, { capture: true });
+    }
+    if (this.finalEditor && this.boundHandleFinalPointerDown) {
+      this.finalEditor.removeEventListener("pointerdown", this.boundHandleFinalPointerDown, { capture: true });
+      this.boundHandleFinalPointerDown = null;
     }
     for (const handler of this.scopeHandlers) {
       this.scope.unregister(handler);
@@ -1581,6 +1944,7 @@ export class ReviewDiffModal extends Modal {
     }
 
     this.headerEl = null;
+    this.keyboardNavButtonEl = null;
     this.contentEl.empty();
   }
 }

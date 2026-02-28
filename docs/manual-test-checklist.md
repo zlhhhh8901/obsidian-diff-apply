@@ -65,13 +65,33 @@
 4. Press `Mod+Shift+Z` (or `Mod+Y` where available).
 5. Expected: changes are redone step-by-step.
 
-## 8. Long text scroll and edge hints
+## 8. Keyboard navigation
+
+1. Open modal with multiple diff markers visible in `Review`.
+2. Enable keyboard mode (click the keyboard button in footer, or press `Mod+Shift+K`).
+3. Press `ArrowDown` repeatedly.
+4. Expected: active marker cycles (wraps), `Final` scrolls to the marker position, overlay shows highlight/caret.
+
+5. Press `ArrowUp` repeatedly.
+6. Expected: cycles backward (wraps).
+
+7. Press `Enter`.
+8. Expected: restores original text for active marker, diff updates immediately, active marker advances (or clears when no markers remain).
+
+9. Move focus to a footer control (e.g., click `Word` / `Char`).
+10. Repeat the shortcuts above.
+11. Expected: same behavior regardless of focus; `Mod+Enter` still applies the final result; `Esc` still cancels.
+
+12. Click inside `Final`.
+13. Expected: keyboard mode exits; arrow keys and Enter behave as normal editing keys again.
+
+## 9. Long text scroll and edge hints
 
 1. Use long text (50+ lines) with multiple diff markers.
 2. Scroll `Final` and hover/click markers in `Review`.
 3. Expected: overlay stays aligned; edge hints appear when target is above/below viewport.
 
-## 9. Theme sanity check
+## 10. Theme sanity check
 
 1. Repeat a quick pass in light and dark themes.
 2. Expected: text contrast and marker visibility are acceptable; controls remain usable.
