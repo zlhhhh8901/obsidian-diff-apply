@@ -719,6 +719,17 @@
   outline-offset: 2px;
 }
 
+/* Keep global keyboard focus styles, but remove textarea corner ring in final editor. */
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final:focus,
+.merge-conflict-view .hybrid-panel.editable textarea.hybrid-editor--final:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .hybrid-diff-modal textarea::selection {
   background-color: var(--text-selection, #cce7ff);
 }
