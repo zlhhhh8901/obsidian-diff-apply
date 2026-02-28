@@ -413,19 +413,21 @@ export class ReviewDiffModal extends Modal {
     const rect = this.helpButtonEl.getBoundingClientRect();
     const tooltipRect = this.helpTooltipEl.getBoundingClientRect();
     const gap = 8;
+    const viewportPadding = 8;
 
-    let left = rect.right - tooltipRect.width;
-    let top = rect.bottom + gap;
+    let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+    const maxLeft = window.innerWidth - tooltipRect.width - viewportPadding;
+    left = Math.max(viewportPadding, Math.min(maxLeft, left));
 
-    const maxLeft = window.innerWidth - tooltipRect.width - 8;
-    const maxTop = window.innerHeight - tooltipRect.height - 8;
+    const preferredTop = rect.top - gap - tooltipRect.height;
+    const fallbackTop = rect.bottom + gap;
+    const maxTop = window.innerHeight - tooltipRect.height - viewportPadding;
 
-    left = Math.max(8, Math.min(maxLeft, left));
-    top = Math.max(8, Math.min(maxTop, top));
-
-    if (rect.bottom + gap + tooltipRect.height > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - gap - tooltipRect.height);
+    let top = preferredTop;
+    if (top < viewportPadding) {
+      top = Math.min(maxTop, fallbackTop);
     }
+    top = Math.max(viewportPadding, Math.min(maxTop, top));
 
     this.helpTooltipEl.style.left = `${left}px`;
     this.helpTooltipEl.style.top = `${top}px`;
