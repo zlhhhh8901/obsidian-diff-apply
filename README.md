@@ -1,91 +1,67 @@
 # Diff Apply (Obsidian Plugin)
 
-[中文](#中文) | [English](#english)
+[中文](README.zh.md)
 
-## 中文
+## Why do you need it?
 
-Diff Apply 用于在 Obsidian 中把“选中的原文”与“目标文本”进行对照审阅，并快速回填原文片段后应用结果。
+When revising and merging long-form text (e.g., translation proofreading, comparing AI-polished versions, merging multiple draft versions), the usual workflow is often: **scroll back and forth → visually hunt for differences → copy and paste sentence by sentence**. This is not only inefficient, but also very prone to missing edits, making incorrect changes, or pasting into the wrong place.
 
-### 当前工作流（与实现一致）
+Traditional diff tools are mostly designed for **code comparison**, and don’t fully fit text scenarios where **differences are scattered and edits are flexible**.
 
-1. 在编辑器中选中一段原文。
-2. 运行命令 `Review & Apply Selection`，或在编辑器右键菜单点击 `Review & Apply`。
-3. 右侧 `Final` 初始内容优先取系统剪贴板；若剪贴板不可读或为空，则回退为选中文本。
-4. 左侧 `Review` 展示差异标记：
-   - 删除内容（原文有、Final 无）为删除标记
-   - 新增/替换内容可悬停查看原文 tooltip
-   - 点击差异项可把对应原文注入右侧 `Final`
-5. 在底部可切换差异粒度（`Word` / `Char`）与字号（10–24px）。
-6. 点击 `Apply` 将右侧结果替换回原始选区；点击 `Cancel` 取消。
+This project focuses on **text diff merging**. It provides an intuitive dual-pane floating window for **reviewing differences + editing instantly**, turning tedious side-by-side checking and copy-pasting into convenient click/keyboard actions—so you can spend your attention on the content decisions that matter.
 
-### 功能范围
+## Core Features
 
-- 双栏审阅：`Review` + `Final`
-- 差异粒度切换：Word / Char
-- 字号调节并持久化
-- Final 区支持撤销/重做（`Mod+Z`, `Mod+Shift+Z`, `Mod+Y`）
-- 悬停定位、注入闪烁、边缘方向提示（长文本）
+### 1. Dual-pane floating window
 
-### 截图占位（后续补图）
+* **Left: Review (Diff review area)**
+  Displays the diff between the **original text (the current selection)** and the **final text (initially read from the clipboard)** in real time, and supports direct interaction with diff fragments.
 
-本次不内置截图，后续请补充到 `assets/screenshots/`，建议使用以下文件名：
+* **Right: FINAL (Final text editor)**
+  You can edit the final text directly. The cursor position stays highlight-synced with the diff on the left, helping you accurately locate corresponding fragments.
 
-- `review-default.png`
-- `review-hover-tooltip.png`
-- `review-click-inject.png`
-- `review-edge-hints.png`
+### 2. Visual diff presentation
 
-README 可在截图补齐后按上述命名直接引用。
+![default](./assets/screenshots/default.png)
 
-### 安装
+Instead of messy code-style diff markers, the Review pane uses only two basic styles to express three diff semantics—**add / delete / replace**—balancing information density and readability:
 
-1. 创建插件目录：`.obsidian/plugins/diff-apply/`
-2. 复制以下文件到该目录：
-   - `main.js`
-   - `manifest.json`
-   - `styles.css`
-3. 在 Obsidian 设置中启用 `Diff Apply`。
+* **Highlighted background**: content that is **added / replaced** in the final text relative to the original
+* **Gray background + strikethrough**: content that is **deleted** in the final text relative to the original
 
----
+### 3. “What you see is what you get” interaction rules
 
-## English
+**Interaction principle: selection is used to “hint what will happen”; execution is used to “perform the action.”** The Review pane is not only for display—it’s also an operation area. **Both mouse and keyboard are supported, and they trigger the same interactive feedback.**
 
-Diff Apply helps you review differences between selected source text and target text in Obsidian, then quickly inject original fragments back and apply the final result.
+| Diff Type                                          | Visual Style           | Hover / Keyboard Selected                                                                                | Click / Keyboard Execute                                                                                   |
+| :------------------------------------------------- | :--------------------- | :------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| **Replace**<br>*(both sides differ)*               | Highlighted background | Shows a tooltip with the corresponding original content; the right pane highlights the matching position | Injects the **original fragment** into the right editor with one click, overwriting the current final text |
+| **Add**<br>*(exists in final, not in original)*    | Highlighted background | Turns into **gray background + strikethrough** (hinting it will be removed after the action)             | **Deletes** the added fragment from the right editor with one click                                        |
+| **Delete**<br>*(exists in original, not in final)* | Gray strikethrough     | Turns into **normal text** (hinting it will be added after the action)                                   | **Inserts** the missing fragment at the corresponding position in the right editor with one click          |
 
-### Current workflow (matches implementation)
+<video src="https://github.com/user-attachments/assets/3fbaad11-5bcb-4102-8fb2-d6b0e623c0be" controls="controls" width="100%"></video>
 
-1. Select source text in the editor.
-2. Run `Review & Apply Selection`, or right-click and choose `Review & Apply`.
-3. The `Final` pane initializes from clipboard text first; if clipboard read fails or is empty, it falls back to the selected text.
-4. The `Review` pane renders inline diff markers:
-   - deleted original parts are shown as delete markers
-   - inserted/replaced parts support hover tooltip with original text
-   - clicking a diff segment injects original text into `Final`
-5. Use footer controls for diff granularity (`Word` / `Char`) and font size (10–24px).
-6. Click `Apply` to replace the original selection; click `Cancel` to discard.
+### 4. Operation modes and helper features
 
-### Feature scope
+* **Multiple modes**: supports hover-based mouse operations and a **pure keyboard mode** (toggle via `Mod+Shift+K` or the keyboard icon in the bottom bar; use `↑/↓` to move between markers and `Enter` to apply).
+* **Smart jump**: if a diff marker is off-screen, the first click jumps to it; the second click performs the merge action.
+* **Fine-tuning**: the bottom toolbar lets you switch diff granularity (`Word` / `Char`) and font size (10–24px) in real time.
+* **Undo/redo**: the right editor fully supports undo/redo (`Mod+Z` / `Mod+Shift+Z` / `Mod+Y`).
 
-- Two-pane review: `Review` + `Final`
-- Diff granularity toggle: Word / Char
-- Font size controls with persistence
-- Undo/redo in Final pane (`Mod+Z`, `Mod+Shift+Z`, `Mod+Y`)
-- Hover navigation, injection flash, edge direction hints for long text
+## Workflow
 
-### Screenshot placeholders (to be added)
+1. **Select the original**: select the source text (ORIGINAL) to review in Obsidian.
+2. **Open the panel**: run the command `Review & Apply Selection` to open the diff panel.
+3. **Load the final version**: the FINAL text on the right is initially read from the system clipboard automatically.
+4. **Review and operate**: view differences on the left; click diff fragments for quick replace/delete actions, or freely edit on the right.
+5. **Apply or cancel**: replace the original selection with the final result from the right pane, or exit without applying.
 
-Screenshots are intentionally omitted in this cleanup pass. Add future screenshots under `assets/screenshots/` with these names:
+## Install and enable
 
-- `review-default.png`
-- `review-hover-tooltip.png`
-- `review-click-inject.png`
-- `review-edge-hints.png`
+1. Create the plugin directory in your vault: `.obsidian/plugins/diff-apply/`
+2. Put the release files into that directory:
 
-### Installation
-
-1. Create plugin folder: `.obsidian/plugins/diff-apply/`
-2. Copy the following files into it:
-   - `main.js`
-   - `manifest.json`
-   - `styles.css`
-3. Enable `Diff Apply` in Obsidian settings.
+   * `main.js`
+   * `manifest.json`
+   * `styles.css`
+3. Restart Obsidian, then enable **Diff Apply** under **Settings → Community plugins**
