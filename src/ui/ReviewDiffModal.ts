@@ -171,8 +171,8 @@ export class ReviewDiffModal extends Modal {
     }
 
     // Reset inline overrides before measuring.
-    this.headerEl.style.paddingRight = "";
-    this.titleEl.style.paddingTop = "";
+    this.headerEl.setCssProps({ "padding-right": "" });
+    this.titleEl.setCssProps({ "padding-top": "" });
 
     const closeButton = this.modalEl.querySelector<HTMLElement>(
       "button.modal-close-button, .modal-close-button, button[aria-label='Close'], .modal-close",
@@ -194,20 +194,20 @@ export class ReviewDiffModal extends Modal {
       const basePaddingTopRaw = Number.parseFloat(computed.paddingTop);
       const basePaddingTop = Number.isFinite(basePaddingTopRaw) ? basePaddingTopRaw : 0;
       const nextPaddingTop = Math.max(0, basePaddingTop + offsetY);
-      this.titleEl.style.paddingTop = `${nextPaddingTop}px`;
+      this.titleEl.setCssProps({ "padding-top": `${nextPaddingTop}px` });
       headerRect = this.headerEl.getBoundingClientRect();
     }
 
     const overlapsVertically = headerRect.top < closeRect.bottom && headerRect.bottom > closeRect.top;
 
     if (!overlapsVertically) {
-      this.headerEl.style.paddingRight = "0px";
+      this.headerEl.setCssProps({ "padding-right": "0px" });
       return;
     }
 
     const gap = 4;
     const requiredPadding = Math.max(0, headerRect.right - closeRect.left + gap);
-    this.headerEl.style.paddingRight = `${Math.ceil(requiredPadding)}px`;
+    this.headerEl.setCssProps({ "padding-right": `${Math.ceil(requiredPadding)}px` });
   }
 
   private createPanels(editorsContainer: HTMLElement): void {
